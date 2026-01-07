@@ -15,3 +15,6 @@ wheels/
 
 # jupyter
 .ipynb_checkpoints
+
+# env vars
+.env
