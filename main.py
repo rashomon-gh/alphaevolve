@@ -1,37 +1,9 @@
-import argparse
 from alphaevolve.agent import AlphaEvolveAgent
 from alphaevolve.config import SearchConfig
+from alphaevolve.cli import create_cli_args
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="AlphaEvolve: Evolutionary search for program synthesis using LLMs"
-    )
-    parser.add_argument(
-        "--model-id",
-        type=str,
-        default="google/gemma-2b-it",
-        help="HuggingFace model ID to use (default: google/gemma-2b-it)",
-    )
-    parser.add_argument(
-        "--population-size",
-        type=int,
-        default=5,
-        help="Number of candidate programs in the population (default: 5)",
-    )
-    parser.add_argument(
-        "--num-generations",
-        type=int,
-        default=50,
-        help="Number of generations to run the evolutionary search (default: 50)",
-    )
-    parser.add_argument(
-        "--num-parent-context",
-        type=int,
-        default=2,
-        help="Number of best programs to include in LLM context for generation (default: 2)",
-    )
-
-    args = parser.parse_args()
+    args = create_cli_args()
 
     search_config = SearchConfig(
         model_id=args.model_id,
