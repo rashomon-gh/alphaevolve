@@ -11,6 +11,7 @@ if __name__ == "__main__":
         population_size=args.population_size,
         num_generations=args.num_generations,
         num_parent_context=args.num_parent_context,
+        early_stopping_threshold=args.early_stopping_threshold,
     )
 
     initial_heuristic = """
@@ -23,7 +24,9 @@ if __name__ == "__main__":
     agent.seed_population(initial_heuristic)
 
     for gen in range(1, search_config.num_generations + 1):
-        agent.step(gen)
+        should_continue = agent.step(gen)
+        if not should_continue:
+            break
 
     print("\n=== Final Discovered Solution ===")
     print(agent.population[0].code)

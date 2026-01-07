@@ -29,6 +29,12 @@ def create_cli_args():
         default=2,
         help="Number of best programs to include in LLM context for generation (default: 2)",
     )
+    parser.add_argument(
+        "--early-stopping-threshold",
+        type=int,
+        default=5,
+        help="Stop if fitness doesn't improve after this many generations (default: 5)",
+    )
 
     args = parser.parse_args()
 

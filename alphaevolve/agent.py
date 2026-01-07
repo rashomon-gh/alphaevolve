@@ -26,6 +26,8 @@ class AlphaEvolveAgent:
         )
         self.evaluator = Evaluator()
         self.population: List[Program] = []
+        self.best_fitness = float("-inf")
+        self.generations_without_improvement = 0
 
     def seed_population(self, initial_code: str):
         """Initialize the database with a user-provided starting point."""
@@ -74,8 +76,6 @@ class AlphaEvolveAgent:
         clean_code = llm_response.replace("```", "").strip()
         return clean_code
 
-    # TODO: implement some form of early stopping in case fitness doesn't
-    # improve after a fixed number of steps
     @torch.no_grad()
     def llm_mutate(self, parent: Program, inspirations: List[Program]) -> str:
         """
@@ -138,4 +138,26 @@ class AlphaEvolveAgent:
         # Prune to fixed size, keeping only the best ones in terms of fitness
         self.population = self.population[: self.config.population_size]
 
-        print(f"Best in Gen {generation_idx}: {self.population[0].fitness}")
+        current_best_fitness = self.population[0].fitness
+        print(f"Best in Gen {generation_idx}: {current_best_fitness}")
+
+        # Check for fitness improvement and update early stopping counter
+        if current_best_fitness > self.best_fitness:
+            self.best_fitness = current_best_fitness
+            self.generations_without_improvement = 0
+            print(f"New best fitness: {self.best_fitness}")
+        else:
+            self.generations_without_improvement += 1
+            print(
+                f"No improvement for {self.generations_without_improvement} generation(s)"
+            )
+
+        # Check early stopping condition
+        if self.generations_without_improvement >= self.config.early_stopping_threshold:
+            print(
+                f"\nEarly stopping triggered: No improvement for "
+                f"{self.generations_without_improvement} generations (threshold: {self.config.early_stopping_threshold})"
+            )
+            return False  # Signal to stop the evolutionary loop
+
+        return True  # Continue the evolutionary loop
