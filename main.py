@@ -2,6 +2,7 @@ from alphaevolve.agent import AlphaEvolveAgent
 from alphaevolve.config import SearchConfig
 
 if __name__ == "__main__":
+    # TODO: cmd args
     search_config = SearchConfig(
         model_id="google/gemma-2b-it",
         population_size=5,
@@ -21,5 +22,7 @@ if __name__ == "__main__":
     for gen in range(1, search_config.num_generations + 1):
         agent.step(gen)
 
+    # TODO: export to runnable python file
+    # TODO: also ask LLM to add dependencies. solution alone isn't enough
     print("\n=== Final Discovered Solution ===")
     print(agent.population[0].code)
