@@ -3,7 +3,7 @@ from pydantic import SecretStr
 
 
 class SecretsStore(BaseSettings):
-    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     huggingface_token: SecretStr
 
