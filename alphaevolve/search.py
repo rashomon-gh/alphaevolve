@@ -48,6 +48,9 @@ class NumericalEvaluator(Evaluator):
     Users can provide custom test inputs, targets, and an optional custom
     evaluation function. By default, it calculates Mean Squared Error (MSE)
     between predictions and targets.
+    
+    Example usage:
+    https://gist.github.com/rashomon-gh/c951d651985a573c49fe6384aa82a948
     """
 
     def __init__(
