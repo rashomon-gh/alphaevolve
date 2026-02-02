@@ -85,23 +85,6 @@ Test Python syntax of all modules:
 python test_syntax.py
 ```
 
-### Module Structure
-
-```
-alphaevolve/
-├── agent.py              # Main evolutionary agent
-├── config.py             # Configuration dataclasses
-├── program_database.py    # MAP-Elites selection and population management
-├── prompt_sampler.py      # Rich context prompt construction
-├── llm_ensemble.py       # Model tiering and diff support
-├── evaluation_engine.py   # Cascaded and parallel evaluation
-├── task_loader.py        # EVOLVE-BLOCK marker parsing
-├── search.py            # Evaluators
-├── cli.py               # Command-line interface
-├── secrets.py           # Environment variable management
-└── utils.py            # Utility functions
-```
-
 ## Example Usages
 
 ### Simple Numerical Optimization
