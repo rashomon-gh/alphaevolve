@@ -16,9 +16,11 @@ def write_solution_to_file(code: str, output_file_name: str) -> None:
     """
     try:
         output_path = Path("exported")
-        output_path.joinpath(output_file_name)
+        output_path.mkdir(exist_ok=True)
+        
+        file_path = output_path.joinpath(output_file_name)
 
-        with open(output_path, "w") as f:
+        with open(file_path, "w") as f:
             f.write(code)
     except IOError as e:
         raise IOError(f"Failed to write solution to {output_file_name}: {e}") from e

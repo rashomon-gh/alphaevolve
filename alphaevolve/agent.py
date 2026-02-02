@@ -1,163 +1,300 @@
+"""
+AlphaEvolve Agent module.
+
+Implements the main evolutionary loop using all components.
+"""
 import torch
-import re
-from typing import List
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from typing import List, Optional, Dict, Any
 from alphaevolve.config import SearchConfig
-from alphaevolve.search import Program, Evaluator
-from alphaevolve.secrets import values
+from alphaevolve.program_database import ProgramDatabase, Program, SelectionStrategy
+from alphaevolve.prompt_sampler import PromptSampler, PromptStyle
+from alphaevolve.llm_ensemble import LLMEnsemble, ModelConfig, ModelTier
+from alphaevolve.evaluation_engine import EvaluationEngine
+from alphaevolve.task_loader import TaskLoader, TaskSpecification
 
 
 class AlphaEvolveAgent:
+    """
+    Main agent for LLM-guided evolutionary coding.
+    
+    Integrates all components:
+    - Program Database with MAP-Elites selection
+    - Prompt Sampler with rich context
+    - LLM Ensemble with model tiering
+    - Evaluation Engine with cascading and parallelization
+    """
+    
     def __init__(self, config: SearchConfig):
+        """
+        Initialize the AlphaEvolve agent.
+        
+        Args:
+            config: Configuration for the search
+        """
         self.config = config
-
-        print(f"Loading {config.model_id}...")
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.config.model_id, token=values.huggingface_token.get_secret_value()
+        
+        # Initialize Program Database
+        self.database = ProgramDatabase(
+            population_size=config.population_size,
+            selection_strategy=SelectionStrategy(config.selection_strategy.value),
+            diversity_weight=config.diversity_weight,
         )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self.config.model_id,
-            # load model on GPU
-            # requires accelerate
-            device_map="auto",
-            # TODO: make this a param
-            dtype=torch.float16,
-            token=values.huggingface_token.get_secret_value(),
+        
+        # Initialize Prompt Sampler
+        self.prompt_sampler = PromptSampler(
+            prompt_style=PromptStyle(config.prompt_style.value),
+            use_dynamic_formatting=config.use_dynamic_formatting,
+            num_context_programs=config.num_context_programs,
+            include_evaluation_feedback=config.include_evaluation_feedback,
         )
-        self.evaluator = Evaluator()
-        self.population: List[Program] = []
-        self.best_fitness = float("-inf")
+        
+        # Initialize LLM Ensemble
+        if config.use_ensemble:
+            # Create ensemble with fast and strong models
+            fast_config = ModelConfig(
+                model_id=config.model_id,
+                tier=ModelTier.FAST,
+                use_diff=config.use_diff_format,
+            )
+            strong_config = ModelConfig(
+                model_id=config.strong_model_id or "google/gemma-2-9b-it",
+                tier=ModelTier.STRONG,
+                use_diff=config.use_diff_format,
+            )
+            self.llm_ensemble = LLMEnsemble([fast_config, strong_config])
+        else:
+            # Single model ensemble
+            single_config = ModelConfig(
+                model_id=config.model_id,
+                tier=ModelTier.FAST,
+                use_diff=config.use_diff_format,
+            )
+            self.llm_ensemble = LLMEnsemble([single_config])
+        
+        # Initialize Task Loader if using evolve blocks
+        self.task_spec: Optional[TaskSpecification] = None
+        if config.use_evolve_blocks and config.task_file:
+            self.task_loader = TaskLoader(config.task_file)
+            self.task_spec = self.task_loader.parse()
+        
+        # Track generations without improvement
         self.generations_without_improvement = 0
-
-    def seed_population(self, initial_code: str):
-        """Initialize the database with a user-provided starting point."""
-        fitness = self.evaluator.evaluate(initial_code)
-        self.population.append(Program(code=initial_code, fitness=fitness))
-        print(f"Seeded with fitness: {fitness}")
-
-    def construct_prompt(self, parent: Program, inspirations: List[Program]) -> str:
+        self.best_fitness = -float("inf")
+    
+    def set_evaluator(self, evaluator: Any) -> None:
         """
-        Builds the 'Rich Context' prompt.
-        It includes 'Prior programs' (inspirations) and the 'Current program' (parent) to mutate.
+        Set the evaluator function.
+        
+        Args:
+            evaluator: Evaluator function or object
         """
-
-        # 1. Context: Show high-performing past solutions
-        prompt_content = "You are an intelligent coding assistant. Your goal is to optimize a Python function to match a hidden mathematical pattern.\n\n"
-
-        if inspirations:
-            prompt_content += "--- Prior Best Solutions ---\n"
-            for p in inspirations:
-                prompt_content += f"Score: {p.fitness}\nCode:\n{p.code}\n\n"
-
-        # 2. Task: Present the parent code to modify
-        prompt_content += "--- Current Code to Improve ---\n"
-        prompt_content += f"{parent.code}\n\n"
-
-        prompt_content += "--- Task ---\n"
-        prompt_content += "Rewrite the 'Current Code' to improve its accuracy. "
-        prompt_content += "Think about the pattern in the Prior Solutions. "
-        prompt_content += "Output ONLY the full Python code for the 'solve' function. No markdown, no explanation."
-
-        # Format for Gemma (Chat Template)
-        messages = [{"role": "user", "content": prompt_content}]
-        return self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        # If evaluator has an evaluate method, use it
+        if hasattr(evaluator, 'evaluate'):
+            self.evaluator = evaluator.evaluate
+        else:
+            self.evaluator = evaluator
+        
+        # Initialize Evaluation Engine
+        self.evaluation_engine = EvaluationEngine(
+            base_evaluator=self.evaluator,
+            use_cascaded=self.config.use_cascaded_evaluation,
+            use_parallel=self.config.use_parallel_evaluation,
+            max_workers=self.config.max_workers,
         )
-
-    def extract_code(self, llm_response: str) -> str:
-        """Parses the LLM output to extract executable Python code."""
-        # Simple regex to find python code blocks if the model uses markdown
-        match = re.search(r"```python\n(.*?)\n```", llm_response, re.DOTALL)
-        if match:
-            return match.group(1)
-
-        # If no markdown, assume the whole response is code (fallback)
-        # Cleaning up common chat artifacts
-        clean_code = llm_response.replace("```", "").strip()
-        return clean_code
-
-    @torch.no_grad()
-    def llm_mutate(self, parent: Program, inspirations: List[Program]) -> str:
+    
+    def seed_population(self, initial_code: str) -> None:
         """
-        Uses the LLM to propose a 'diff' or rewrite of the parent code.
+        Initialize the database with a user-provided starting point.
+        
+        Args:
+            initial_code: Initial code to seed with
         """
+        fitness = self.evaluation_engine.evaluate(initial_code)
+        self.database.seed_population(initial_code, fitness)
+        
+        print(f"Seeded population with fitness: {fitness}")
+        if fitness > self.best_fitness:
+            self.best_fitness = fitness
+    
+    def construct_prompt(
+        self,
+        parent: Program,
+        inspirations: List[Program],
+        evaluation_feedback: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Construct prompt with rich context.
+        
+        Args:
+            parent: Parent program to mutate
+            inspirations: High-performing programs for context
+            evaluation_feedback: Evaluation results for the parent
+            
+        Returns:
+            Constructed prompt
+        """
+        task_description = ""
+        if self.task_spec:
+            task_description = "Optimize the code within EVOLVE-BLOCK markers."
+        
+        if self.config.use_diff_format:
+            # Use diff prompt format
+            return self.prompt_sampler.construct_diff_prompt(
+                current_program=parent,
+                prior_programs=inspirations,
+                task_description=task_description,
+            )
+        else:
+            # Use standard prompt format
+            return self.prompt_sampler.construct_prompt(
+                current_program=parent,
+                prior_programs=inspirations,
+                task_description=task_description,
+                evaluation_feedback=evaluation_feedback,
+            )
+    
+    def llm_mutate(
+        self,
+        parent: Program,
+        inspirations: List[Program],
+        generation: int,
+    ) -> str:
+        """
+        Use LLM to propose a mutation.
+        
+        Args:
+            parent: Parent program to mutate
+            inspirations: High-performing programs for context
+            generation: Current generation number
+            
+        Returns:
+            Mutated code
+        """
+        # Construct prompt
         prompt = self.construct_prompt(parent, inspirations)
-        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=256,
-            temperature=0.7,  # High temp for diversity/exploration
-            do_sample=True,
-        )
-
-        generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # Remove the prompt from the output to get just the response
-        response_text = generated_text[
-            len(self.tokenizer.decode(inputs.input_ids[0], skip_special_tokens=True)) :
-        ]
-
-        return self.extract_code(response_text)
-
-    def step(self, generation_idx):
-        """Runs one iteration of the evolutionary loop."""
-        print(f"\n--- Generation {generation_idx} ---")
-
-        # Sort population by fitness (descending)
-        self.population.sort(key=lambda p: p.fitness, reverse=True)
-
-        # Keep top K as "Inspirations" for the prompt (Elitism)
-        inspirations = self.population[: self.config.num_parent_context]
-
-        new_programs = []
-
+        
+        # Generate mutation
+        if self.config.use_diff_format:
+            # Use diff format
+            new_code = self.llm_ensemble.mutate_with_diff(
+                original_code=parent.code,
+                prompt=prompt,
+                generation=generation,
+                num_generations_without_improvement=self.generations_without_improvement,
+            )
+        else:
+            # Generate full code
+            response = self.llm_ensemble.mutate(
+                prompt=prompt,
+                generation=generation,
+                num_generations_without_improvement=self.generations_without_improvement,
+            )
+            
+            # Extract code from response
+            new_code = self.llm_ensemble.extract_code(response)
+        
+        return new_code
+    
+    def step(self, generation_idx: int) -> bool:
+        """
+        Run one iteration of the evolutionary loop.
+        
+        Args:
+            generation_idx: Current generation index
+            
+        Returns:
+            True to continue, False to stop
+        """
+        print(f"\n{'='*60}")
+        print(f"Generation {generation_idx}")
+        print(f"{'='*60}")
+        
+        # Advance generation in database
+        self.database.advance_generation()
+        
+        # Select parents using MAP-Elites or configured strategy
+        num_parents = min(self.config.num_parent_context, len(self.database.population))
+        parents = self.database.select_parents(num_parents)
+        
+        print(f"Selected {len(parents)} parents for mutation")
+        for i, parent in enumerate(parents):
+            print(f"  Parent {i+1}: fitness={parent.fitness:.4f}, gen={parent.generation}")
+        
+        # Sample from archive for additional context
+        context_programs = self.database.sample_for_context(self.config.num_context_programs)
+        
         # Generate offspring
-        # We take the best parent and try to mutate it multiple times
-        parent = self.population[0]
-
+        new_programs = []
+        
+        # Use the best parent for mutation
+        parent = parents[0]
+        
+        # Get evaluation feedback for parent
+        evaluation_feedback = parent.metadata if parent.metadata else {}
+        
+        print(f"\nGenerating {self.config.population_size} offspring...")
+        
         for i in range(self.config.population_size):
-            print(f"  > Mutating parent (Fitness: {parent.fitness})...", end="")
-
+            print(f"  > Offspring {i+1}/{self.config.population_size}...", end=" ")
+            
             try:
-                # 1. LLM Mutation
-                mutated_code = self.llm_mutate(parent, inspirations)
-
-                # 2. Evaluation
-                fitness = self.evaluator.evaluate(mutated_code)
-                print(f" Result Fitness: {fitness}")
-
-                # 3. Add to pool
-                new_programs.append(Program(code=mutated_code, fitness=fitness))
-
+                # LLM Mutation
+                mutated_code = self.llm_mutate(
+                    parent=parent,
+                    inspirations=context_programs,
+                    generation=generation_idx,
+                )
+                
+                # Evaluation
+                fitness = self.evaluation_engine.evaluate(mutated_code)
+                
+                print(f"fitness={fitness:.4f}")
+                
+                # Add to new programs
+                new_program = Program(code=mutated_code, fitness=fitness)
+                new_programs.append(new_program)
+                
             except Exception as e:
-                print(f" Failed: {e}")
-
-        # Update Population (Join and Select)
-        self.population.extend(new_programs)
-        self.population.sort(key=lambda p: p.fitness, reverse=True)
-        # Prune to fixed size, keeping only the best ones in terms of fitness
-        self.population = self.population[: self.config.population_size]
-
-        current_best_fitness = self.population[0].fitness
-        print(f"Best in Gen {generation_idx}: {current_best_fitness}")
-
-        # Check for fitness improvement and update early stopping counter
-        if current_best_fitness > self.best_fitness:
-            self.best_fitness = current_best_fitness
+                print(f"FAILED: {e}")
+        
+        # Add new programs to database
+        for program in new_programs:
+            self.database.add_program(program)
+        
+        # Prune population to maintain size
+        self.database.prune_population()
+        
+        # Get statistics
+        stats = self.database.get_population_stats()
+        current_best = self.database.get_best_program()
+        
+        print(f"\nGeneration {generation_idx} Statistics:")
+        print(f"  Population size: {stats['population_size']}")
+        print(f"  Best fitness: {stats['best_fitness']:.4f}")
+        print(f"  Mean fitness: {stats['mean_fitness']:.4f}")
+        print(f"  Std fitness: {stats['std_fitness']:.4f}")
+        
+        # Check for improvement
+        if current_best and current_best.fitness > self.best_fitness:
+            improvement = current_best.fitness - self.best_fitness
+            self.best_fitness = current_best.fitness
             self.generations_without_improvement = 0
-            print(f"New best fitness: {self.best_fitness}")
+            print(f"  New best! Improvement: +{improvement:.4f}")
         else:
             self.generations_without_improvement += 1
-            print(
-                f"No improvement for {self.generations_without_improvement} generation(s)"
-            )
-
-        # Check early stopping condition
+            print(f"  No improvement for {self.generations_without_improvement} generation(s)")
+        
+        # Check early stopping
         if self.generations_without_improvement >= self.config.early_stopping_threshold:
-            print(
-                f"\nEarly stopping triggered: No improvement for "
-                f"{self.generations_without_improvement} generations (threshold: {self.config.early_stopping_threshold})"
-            )
-            return False  # Signal to stop the evolutionary loop
-
-        return True  # Continue the evolutionary loop
+            print(f"\nEarly stopping: No improvement for {self.generations_without_improvement} generations")
+            return False
+        
+        return True
+    
+    def get_best_program(self) -> Optional[Program]:
+        """Get the best program found."""
+        return self.database.get_best_program()
+    
+    def get_population_stats(self) -> Dict[str, Any]:
+        """Get population statistics."""
+        return self.database.get_population_stats()
