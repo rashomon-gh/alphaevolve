@@ -37,3 +37,21 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["alphaevolve"]
+exclude = [
+    "tests", 
+    "tests/*", 
+    "notebooks", 
+    "notebooks/*", 
+    "exported", 
+    "exported/*",
+    ".pytest_cache",
+    ".pytest_cache/*",
+    ".ruff_cache",
+    ".ruff_cache/*",
+    ".vscode",
+    ".vscode/*",
+    ".idea",
+    ".idea/*",
+    ".env",
+    ".env.example",
+]
