@@ -23,7 +23,6 @@ async def run_async_main(args, search_config):
         args: Command-line arguments
         search_config: Search configuration
     """
-    from loguru import logger
 
     logger.info("=" * 70)
     logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent (Async Mode)")
