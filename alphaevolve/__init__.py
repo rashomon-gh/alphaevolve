@@ -12,6 +12,7 @@ from alphaevolve.llm_ensemble import LLMEnsemble, ModelConfig, ModelTier
 from alphaevolve.evaluation_engine import EvaluationEngine, CascadedEvaluator
 from alphaevolve.task_loader import TaskLoader, TaskSpecification
 from alphaevolve.search import NumericalEvaluator
+from alphaevolve.program_validator import ProgramValidator, validate_program, validate_program_file
 
 __version__ = "0.2.0"
 
@@ -31,4 +32,7 @@ __all__ = [
     "TaskLoader",
     "TaskSpecification",
     "NumericalEvaluator",
+    "ProgramValidator",
+    "validate_program",
+    "validate_program_file",
 ]
