@@ -150,7 +150,9 @@ class AlphaEvolveAgent:
         """
         task_description = ""
         if self.task_spec:
-            task_description = "Optimize the code within EVOLVE-BLOCK markers."
+            task_description = "Rewrite and improve the code within EVOLVE-BLOCK markers."
+        else:
+            task_description = "Rewrite and improve the code to solve the problem."
 
         if self.config.use_diff_format:
             # Use diff prompt format (no evaluation feedback in diff mode)
