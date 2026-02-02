@@ -103,6 +103,19 @@ def create_cli_args():
         help="Maximum number of parallel workers (default: 4)",
     )
 
+    # Sync mode argument (to override default async)
+    parser.add_argument(
+        "--use-sync",
+        action="store_true",
+        help="Use synchronous execution mode (default is async)",
+    )
+    parser.add_argument(
+        "--async-queue-size",
+        type=int,
+        default=100,
+        help="Queue size for async workers (default: 100)",
+    )
+
     # Task arguments
     parser.add_argument(
         "--task-file",

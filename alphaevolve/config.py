@@ -41,6 +41,10 @@ class SearchConfig:
     use_parallel_evaluation: bool = False
     max_workers: int = 4
 
+    # Async Controller settings (DEFAULT: True)
+    use_async: bool = True  # Enable async distributed controller by default
+    async_queue_size: int = 100  # Queue size for async workers
+
     # Task settings
     task_file: Optional[str] = None
     use_evolve_blocks: bool = False

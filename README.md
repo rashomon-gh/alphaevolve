@@ -61,7 +61,30 @@ uv run main.py \
   --num-generations 50 \
   --num-parent-context 3 \
   --selection-strategy map_elites \
-  --prompt-style analytical
+  --prompt-style analytical \
+  --max-workers 4 \
+  --use-cascaded-evaluation
+```
+
+**Note:** Async mode is enabled by default for maximum throughput. Use `--use-sync` to fall back to synchronous execution.
+
+### Parallel Evaluation Configuration
+
+Increase worker count for higher throughput:
+
+```bash
+uv run main.py \
+  --max-workers 8 \
+  --use-cascaded-evaluation \
+  --population-size 20
+```
+
+### Synchronous Mode (Legacy)
+
+For debugging or comparison with synchronous execution:
+
+```bash
+uv run main.py --use-sync
 ```
 
 ### Using LLM Ensemble
@@ -83,23 +106,6 @@ Test Python syntax of all modules:
 
 ```bash
 python test_syntax.py
-```
-
-### Module Structure
-
-```
-alphaevolve/
-├── agent.py              # Main evolutionary agent
-├── config.py             # Configuration dataclasses
-├── program_database.py    # MAP-Elites selection and population management
-├── prompt_sampler.py      # Rich context prompt construction
-├── llm_ensemble.py       # Model tiering and diff support
-├── evaluation_engine.py   # Cascaded and parallel evaluation
-├── task_loader.py        # EVOLVE-BLOCK marker parsing
-├── search.py            # Evaluators
-├── cli.py               # Command-line interface
-├── secrets.py           # Environment variable management
-└── utils.py            # Utility functions
 ```
 
 ## Example Usages
@@ -183,11 +189,21 @@ config = SearchConfig(
     use_ensemble=True,
     strong_model_id="google/gemma-2-9b-it",
     use_diff_format=True,
-    use_cascaded_evaluation=True,
+    use_cascaded_evaluation=True,  # Enable evaluation cascade
     use_parallel_evaluation=True,
     max_workers=4,
+    # use_async=True  # Now enabled by default
 )
 
 agent = AlphaEvolveAgent(config)
-# ... set evaluator and run
+
+# For async execution (default):
+import asyncio
+agent.initialize_async_controller(evaluator)
+stats = await agent.run_async_search(num_generations=100)
+
+# For sync execution:
+# for gen in range(1, config.num_generations + 1):
+#     if not agent.step(gen):
+#         break
 ```
