@@ -191,14 +191,3 @@ config = SearchConfig(
 agent = AlphaEvolveAgent(config)
 # ... set evaluator and run
 ```
-
-## Citation
-
-```bibtex
-@article{alphaevolve2024,
-  title={AlphaEvolve: A coding agent for scientific and algorithmic discovery},
-  author={Author et al.},
-  journal={arXiv preprint arXiv:2506.13131},
-  year={2024}
-}
-```
