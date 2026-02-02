@@ -38,6 +38,8 @@ class AlphaEvolveAgent:
             population_size=config.population_size,
             selection_strategy=SelectionStrategy(config.selection_strategy.value),
             diversity_weight=config.diversity_weight,
+            archive_size=config.archive_size,
+            num_islands=config.num_islands,
         )
 
         # Initialize Prompt Sampler
@@ -109,12 +111,20 @@ class AlphaEvolveAgent:
         Args:
             initial_code: Initial code to seed with
         """
-        fitness = self.evaluation_engine.evaluate(initial_code)
-        self.database.seed_population(initial_code, fitness)
+        result = self.evaluation_engine.evaluate(initial_code)
+        program = Program(code=initial_code, fitness=result.fitness)
+        program.metadata.update(result.metrics)
+        if result.error:
+            program.metadata["error"] = result.error
+        program.metadata["passed_stage"] = result.passed_stage
+        self.database.seed_population(initial_code, result.fitness)
+        # Update the seeded program with metadata
+        if self.database.population:
+            self.database.population[0].metadata = program.metadata
 
-        print(f"Seeded population with fitness: {fitness}")
-        if fitness > self.best_fitness:
-            self.best_fitness = fitness
+        print(f"Seeded population with fitness: {result.fitness}")
+        if result.fitness > self.best_fitness:
+            self.best_fitness = result.fitness
 
     def construct_prompt(
         self,
@@ -138,14 +148,14 @@ class AlphaEvolveAgent:
             task_description = "Optimize the code within EVOLVE-BLOCK markers."
 
         if self.config.use_diff_format:
-            # Use diff prompt format
+            # Use diff prompt format (no evaluation feedback in diff mode)
             return self.prompt_sampler.construct_diff_prompt(
                 current_program=parent,
                 prior_programs=inspirations,
                 task_description=task_description,
             )
         else:
-            # Use standard prompt format
+            # Use standard prompt format with evaluation feedback
             return self.prompt_sampler.construct_prompt(
                 current_program=parent,
                 prior_programs=inspirations,
@@ -170,8 +180,11 @@ class AlphaEvolveAgent:
         Returns:
             Mutated code
         """
+        # Get evaluation feedback for parent
+        evaluation_feedback = parent.metadata if parent.metadata else None
+
         # Construct prompt
-        prompt = self.construct_prompt(parent, inspirations)
+        prompt = self.construct_prompt(parent, inspirations, evaluation_feedback)
 
         # Generate mutation
         if self.config.use_diff_format:
@@ -233,10 +246,6 @@ class AlphaEvolveAgent:
         # Use the best parent for mutation
         parent = parents[0]
 
-        # Get evaluation feedback for parent
-        # TODO: add evaluation feedback
-        # evaluation_feedback = parent.metadata if parent.metadata else {}
-
         print(f"\nGenerating {self.config.population_size} offspring...")
 
         for i in range(self.config.population_size):
@@ -251,12 +260,16 @@ class AlphaEvolveAgent:
                 )
 
                 # Evaluation
-                fitness = self.evaluation_engine.evaluate(mutated_code)
+                result = self.evaluation_engine.evaluate(mutated_code)
 
-                print(f"fitness={fitness:.4f}")
+                print(f"fitness={result.fitness:.4f}")
 
-                # Add to new programs
-                new_program = Program(code=mutated_code, fitness=fitness)
+                # Add to new programs with metadata
+                new_program = Program(code=mutated_code, fitness=result.fitness)
+                new_program.metadata.update(result.metrics)
+                if result.error:
+                    new_program.metadata["error"] = result.error
+                new_program.metadata["passed_stage"] = result.passed_stage
                 new_programs.append(new_program)
 
             except Exception as e:

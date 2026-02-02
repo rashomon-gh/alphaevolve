@@ -22,6 +22,7 @@ class SearchConfig:
     selection_strategy: SelectionStrategy = SelectionStrategy.MAP_ELITES
     diversity_weight: float = 0.3
     archive_size: int = 1000
+    num_islands: int = 3  # Number of islands for island model selection
 
     # Prompt Sampler settings
     prompt_style: PromptStyle = PromptStyle.STANDARD

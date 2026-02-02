@@ -9,7 +9,11 @@ from alphaevolve.config import SearchConfig
 from alphaevolve.program_database import ProgramDatabase, Program, SelectionStrategy
 from alphaevolve.prompt_sampler import PromptSampler, PromptStyle
 from alphaevolve.llm_ensemble import LLMEnsemble, ModelConfig, ModelTier
-from alphaevolve.evaluation_engine import EvaluationEngine, CascadedEvaluator
+from alphaevolve.evaluation_engine import (
+    EvaluationEngine,
+    CascadedEvaluator,
+    EvaluationResult,
+)
 from alphaevolve.task_loader import TaskLoader, TaskSpecification
 from alphaevolve.search import NumericalEvaluator
 from alphaevolve.program_validator import (
@@ -33,6 +37,7 @@ __all__ = [
     "ModelTier",
     "EvaluationEngine",
     "CascadedEvaluator",
+    "EvaluationResult",
     "TaskLoader",
     "TaskSpecification",
     "NumericalEvaluator",

@@ -60,6 +60,7 @@ class ProgramDatabase:
         tournament_size: int = 3,
         diversity_weight: float = 0.3,
         archive_size: int = 1000,
+        num_islands: int = 3,
     ):
         """
         Initialize the program database.
@@ -70,12 +71,14 @@ class ProgramDatabase:
             tournament_size: Size of tournament for tournament selection
             diversity_weight: Weight for diversity in selection (0-1)
             archive_size: Size of archive for resurfacing old solutions
+            num_islands: Number of islands for island model selection (default: 3)
         """
         self.population_size = population_size
         self.selection_strategy = selection_strategy
         self.tournament_size = tournament_size
         self.diversity_weight = diversity_weight
         self.archive_size = archive_size
+        self.num_islands = num_islands
 
         self.population: List[Program] = []
         self.archive: List[Program] = []  # Archive of all evaluated programs
@@ -195,24 +198,59 @@ class ProgramDatabase:
         Select parents using island model (divide population into islands).
 
         Each island maintains its own elite, and we rotate between islands.
+
+        The island model divides the population into subgroups (islands) based
+        on generation. Each island evolves somewhat independently, and we
+        select parents by rotating through islands to promote diversity.
         """
         # Divide population into islands based on generation
-        generations = set(p.generation for p in self.population)
-        # TODO: add number of islands
-        # num_islands = max(1, len(generations) // 5)  # Every 5 generations is an island
+        generations = sorted(set(p.generation for p in self.population))
+
+        # If we have fewer distinct generations than islands, merge some
+        if len(generations) < self.num_islands:
+            # Use each generation as its own island
+            island_gens = generations
+        else:
+            # Distribute generations across num_islands islands
+            # Group consecutive generations into islands
+            island_size = len(generations) // self.num_islands
+            island_gens = []
+            for i in range(self.num_islands):
+                start = i * island_size
+                end = (
+                    start + island_size
+                    if i < self.num_islands - 1
+                    else len(generations)
+                )
+                # Use the middle generation of each group as representative
+                mid = (start + end - 1) // 2
+                island_gens.append(generations[mid])
 
         parents = []
+        current_island_idx = 0
+
         for i in range(num_parents):
-            # Select an island
-            island_gen = random.choice(list(generations))
+            # Select an island (rotate through islands)
+            island_gen = island_gens[current_island_idx]
+            current_island_idx = (current_island_idx + 1) % len(island_gens)
+
+            # Get programs from this island's generation range
             island = [p for p in self.population if p.generation == island_gen]
 
             if island:
+                # Select best program from this island
                 parent = max(island, key=lambda p: p.fitness)
                 parents.append(parent)
             else:
-                # Fallback to best overall
-                parents.append(self.best_program)
+                # Fallback: select best from nearest generation
+                nearest_gen = min(generations, key=lambda g: abs(g - island_gen))
+                island = [p for p in self.population if p.generation == nearest_gen]
+                if island:
+                    parent = max(island, key=lambda p: p.fitness)
+                    parents.append(parent)
+                else:
+                    # Ultimate fallback to best overall
+                    parents.append(self.best_program)
 
         return parents
 

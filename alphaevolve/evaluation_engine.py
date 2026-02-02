@@ -435,20 +435,19 @@ class EvaluationEngine:
                     error=str(e),
                 )
 
-    def evaluate(self, code: str) -> float:
+    def evaluate(self, code: str) -> EvaluationResult:
         """
-        Evaluate code and return fitness.
+        Evaluate code and return evaluation result.
 
         Args:
             code: Code to evaluate
 
         Returns:
-            Fitness score (higher is better)
+            EvaluationResult with fitness and metadata
         """
-        result = self._evaluate_single(code)
-        return result.fitness
+        return self._evaluate_single(code)
 
-    def evaluate_batch(self, codes: List[str]) -> List[float]:
+    def evaluate_batch(self, codes: List[str]) -> List[EvaluationResult]:
         """
         Evaluate multiple codes.
 
@@ -456,13 +455,13 @@ class EvaluationEngine:
             codes: List of codes to evaluate
 
         Returns:
-            List of fitness scores
+            List of EvaluationResults
         """
         if self.use_parallel:
             results = self.parallel_evaluator.evaluate_batch(codes)
-            return [r.fitness for r in results]
+            return results
         else:
-            return [self.evaluate(code) for code in codes]
+            return [self._evaluate_single(code) for code in codes]
 
     def evaluate_programs(self, programs: List[Program]) -> List[Program]:
         """
