@@ -3,6 +3,8 @@ AlphaEvolve: LLM-Guided Evolutionary Coding Agent
 
 This script demonstrates AlphaEvolve capabilities with an example optimization task.
 """
+from loguru import logger
+
 from alphaevolve.agent import AlphaEvolveAgent
 from alphaevolve.config import SearchConfig
 from alphaevolve.cli import create_cli_args
@@ -29,7 +31,7 @@ def create_example_task():
     evaluator = NumericalEvaluator(
         test_inputs=list(X),
         test_targets=list(y),
-        error_metric=lambda preds, targets: np.mean((np.array(preds) - np.array(targets))**2)
+        error_metric=lambda preds, targets: np.mean((np.array(preds) - np.array(targets))**2) # type: ignore
     )
     
     # Initial heuristic
@@ -72,23 +74,23 @@ def main():
     )
     
     # Print configuration
-    print("="*70)
-    print("AlphaEvolve: LLM-Guided Evolutionary Coding Agent")
-    print("="*70)
-    print(f"Configuration:")
-    print(f"  Model ID: {search_config.model_id}")
-    print(f"  Population size: {search_config.population_size}")
-    print(f"  Generations: {search_config.num_generations}")
-    print(f"  Selection strategy: {search_config.selection_strategy.value}")
-    print(f"  Prompt style: {search_config.prompt_style.value}")
-    print(f"  Use ensemble: {search_config.use_ensemble}")
-    print(f"  Use diff format: {search_config.use_diff_format}")
-    print(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
-    print(f"  Use parallel evaluation: {search_config.use_parallel_evaluation}")
+    logger.info("="*70)
+    logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent")
+    logger.info("="*70)
+    logger.info("Configuration:")
+    logger.info(f"  Model ID: {search_config.model_id}")
+    logger.info(f"  Population size: {search_config.population_size}")
+    logger.info(f"  Generations: {search_config.num_generations}")
+    logger.info(f"  Selection strategy: {search_config.selection_strategy.value}")
+    logger.info(f"  Prompt style: {search_config.prompt_style.value}")
+    logger.info(f"  Use ensemble: {search_config.use_ensemble}")
+    logger.info(f"  Use diff format: {search_config.use_diff_format}")
+    logger.info(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
+    logger.info(f"  Use parallel evaluation: {search_config.use_parallel_evaluation}")
     if search_config.use_evolve_blocks and search_config.task_file:
-        print(f"  Task file: {search_config.task_file}")
-        print(f"  Using EVOLVE-BLOCK markers: True")
-    print("="*70)
+        logger.info(f"  Task file: {search_config.task_file}")
+        logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
+    logger.info("="*70)
     
     # Initialize agent
     agent = AlphaEvolveAgent(search_config)
@@ -113,12 +115,12 @@ def main():
         agent.set_evaluator(evaluator)
     
     # Seed population
-    print("\nSeeding initial population...")
+    logger.info("Seeding initial population...")
     agent.seed_population(initial_code)
     
     # Run evolutionary search
-    print(f"\nStarting evolutionary search for {search_config.num_generations} generations...")
-    print("-"*70)
+    logger.info(f"Starting evolutionary search for {search_config.num_generations} generations...")
+    logger.info("-"*70)
     
     for gen in range(1, search_config.num_generations + 1):
         should_continue = agent.step(gen)
@@ -126,38 +128,38 @@ def main():
             break
     
     # Print final results
-    print("\n" + "="*70)
-    print("EVOLUTIONARY SEARCH COMPLETE")
-    print("="*70)
+    logger.info("\n" + "="*70)
+    logger.info("EVOLUTIONARY SEARCH COMPLETE")
+    logger.info("="*70)
     
     best_program = agent.get_best_program()
     if best_program:
-        print(f"\nBest fitness achieved: {best_program.fitness:.4f}")
-        print(f"Found at generation: {best_program.generation}")
+        logger.info(f"Best fitness achieved: {best_program.fitness:.4f}")
+        logger.info(f"Found at generation: {best_program.generation}")
         
-        print("\n" + "-"*70)
-        print("Best Solution:")
-        print("-"*70)
-        print(best_program.code)
-        print("-"*70)
+        logger.info("\n" + "-"*70)
+        logger.info("Best Solution:")
+        logger.info("-"*70)
+        logger.info(best_program.code)
+        logger.info("-"*70)
         
         # Export solution
         output_file = f"solution_gen_{best_program.generation}.py"
         try:
             write_solution_to_file(best_program.code, output_file)
-            print(f"\n✓ Solution exported to: {output_file}")
+            logger.success(f"Solution exported to: {output_file}")
         except IOError as e:
-            print(f"\n✗ Failed to export solution: {e}")
+            logger.error(f"Failed to export solution: {e}")
         
         # Print population statistics
         stats = agent.get_population_stats()
-        print(f"\nFinal Population Statistics:")
-        print(f"  Population size: {stats['population_size']}")
-        print(f"  Archive size: {stats['archive_size']}")
-        print(f"  Mean fitness: {stats['mean_fitness']:.4f}")
-        print(f"  Std fitness: {stats['std_fitness']:.4f}")
+        logger.info("\nFinal Population Statistics:")
+        logger.info(f"  Population size: {stats['population_size']}")
+        logger.info(f"  Archive size: {stats['archive_size']}")
+        logger.info(f"  Mean fitness: {stats['mean_fitness']:.4f}")
+        logger.info(f"  Std fitness: {stats['std_fitness']:.4f}")
     else:
-        print("\nNo valid solution found!")
+        logger.warning("No valid solution found!")
 
 
 if __name__ == "__main__":
