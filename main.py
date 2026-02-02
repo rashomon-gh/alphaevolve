@@ -11,41 +11,8 @@ from alphaevolve.agent import AlphaEvolveAgent
 from alphaevolve.config import SearchConfig
 from alphaevolve.cli import create_cli_args
 from alphaevolve.task_loader import TaskLoader
-from alphaevolve.search import NumericalEvaluator
 from alphaevolve.utils import write_solution_to_file
-
-
-def create_example_task():
-    """
-    Create an example optimization task for AlphaEvolve.
-
-    The task is to find a function that transforms input x to produce
-    the correct output y = x^2 (with some noise added).
-    """
-    import numpy as np
-
-    # Generate synthetic data: y = x^2 + noise
-    np.random.seed(42)
-    X = np.linspace(0, 10, 20)
-    y = X**2 + np.random.normal(0, 2, size=X.shape)
-
-    # Create evaluator
-    evaluator = NumericalEvaluator(
-        test_inputs=list(X),
-        test_targets=list(y),
-        error_metric=lambda preds, targets: np.mean(
-            (np.array(preds) - np.array(targets)) ** 2
-        ),  # type: ignore
-    )
-
-    # Initial heuristic
-    initial_code = """
-def solve(x):
-    # Initial guess: linear relationship
-    return x * 5
-"""
-
-    return evaluator, initial_code
+from alphaevolve import examples
 
 
 async def run_async_main(args, search_config):
@@ -96,13 +63,13 @@ async def run_async_main(args, search_config):
             )
             task_description = "Optimize the code within EVOLVE-BLOCK markers."
         else:
-            # Fallback to default evaluator
-            evaluator, initial_code = create_example_task()
+            # Fallback to default evaluator with evolve block example
+            evaluator, initial_code = examples.logistic_function_evolve_block_task()
             agent.set_evaluator(evaluator)
             task_description = ""
     else:
-        # Use default example task
-        evaluator, initial_code = create_example_task()
+        # Use default example task without evolve blocks
+        evaluator, initial_code = examples.composite_function_no_block_task()
         agent.set_evaluator(evaluator)
         task_description = ""
 
@@ -259,12 +226,12 @@ def run_sync_main(args, search_config):
                 else task_spec.original_code
             )
         else:
-            # Fallback to default evaluator
-            evaluator, initial_code = create_example_task()
+            # Fallback to default evaluator with evolve block example
+            evaluator, initial_code = examples.logistic_function_evolve_block_task()
             agent.set_evaluator(evaluator)
     else:
-        # Use default example task
-        evaluator, initial_code = create_example_task()
+        # Use default example task without evolve blocks
+        evaluator, initial_code = examples.composite_function_no_block_task()
         agent.set_evaluator(evaluator)
 
     # Seed population
