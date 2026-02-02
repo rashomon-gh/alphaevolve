@@ -2,6 +2,7 @@
 AlphaEvolve Agent module.
 
 Implements the main evolutionary loop using all components.
+Supports both synchronous and asynchronous execution modes.
 """
 
 from typing import List, Optional, Dict, Any
@@ -11,6 +12,7 @@ from alphaevolve.prompt_sampler import PromptSampler, PromptStyle
 from alphaevolve.llm_ensemble import LLMEnsemble, ModelConfig, ModelTier
 from alphaevolve.evaluation_engine import EvaluationEngine
 from alphaevolve.task_loader import TaskLoader, TaskSpecification
+from alphaevolve.async_controller import AsyncController
 
 
 class AlphaEvolveAgent:
@@ -82,6 +84,9 @@ class AlphaEvolveAgent:
         # Track generations without improvement
         self.generations_without_improvement = 0
         self.best_fitness = -float("inf")
+
+        # Async controller (initialized when needed)
+        self.async_controller: Optional[AsyncController] = None
 
     def set_evaluator(self, evaluator: Any) -> None:
         """
@@ -320,3 +325,68 @@ class AlphaEvolveAgent:
     def get_population_stats(self) -> Dict[str, Any]:
         """Get population statistics."""
         return self.database.get_population_stats()
+
+    def initialize_async_controller(
+        self,
+        evaluator: Any,
+        task_description: str = "",
+    ) -> AsyncController:
+        """
+        Initialize the async controller for distributed execution.
+
+        Args:
+            evaluator: Evaluator function or object
+            task_description: Description of the optimization task
+
+        Returns:
+            Initialized AsyncController instance
+        """
+        # If evaluator has an evaluate method, use it
+        if hasattr(evaluator, "evaluate"):
+            base_evaluator = evaluator.evaluate
+        else:
+            base_evaluator = evaluator
+
+        # Create async controller
+        self.async_controller = AsyncController(
+            config=self.config,
+            database=self.database,
+            llm_ensemble=self.llm_ensemble,
+            prompt_sampler=self.prompt_sampler,
+            evaluator=base_evaluator,
+            task_description=task_description,
+        )
+
+        return self.async_controller
+
+    async def run_async_search(self, num_generations: int) -> Dict[str, Any]:
+        """
+        Run the evolutionary search using async controller.
+
+        Args:
+            num_generations: Number of generations to run
+
+        Returns:
+            Dictionary with search statistics
+        """
+        if self.async_controller is None:
+            raise RuntimeError(
+                "Async controller not initialized. Call initialize_async_controller() first."
+            )
+
+        # Update async controller's tracked values
+        self.async_controller.best_fitness = self.best_fitness
+        self.async_controller.generations_without_improvement = (
+            self.generations_without_improvement
+        )
+
+        # Run async search
+        stats = await self.async_controller.run_async(num_generations)
+
+        # Update agent state
+        self.best_fitness = self.async_controller.best_fitness
+        self.generations_without_improvement = (
+            self.async_controller.generations_without_improvement
+        )
+
+        return stats

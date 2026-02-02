@@ -61,7 +61,30 @@ uv run main.py \
   --num-generations 50 \
   --num-parent-context 3 \
   --selection-strategy map_elites \
-  --prompt-style analytical
+  --prompt-style analytical \
+  --max-workers 4 \
+  --use-cascaded-evaluation
+```
+
+**Note:** Async mode is enabled by default for maximum throughput. Use `--use-sync` to fall back to synchronous execution.
+
+### Parallel Evaluation Configuration
+
+Increase worker count for higher throughput:
+
+```bash
+uv run main.py \
+  --max-workers 8 \
+  --use-cascaded-evaluation \
+  --population-size 20
+```
+
+### Synchronous Mode (Legacy)
+
+For debugging or comparison with synchronous execution:
+
+```bash
+uv run main.py --use-sync
 ```
 
 ### Using LLM Ensemble
@@ -166,11 +189,21 @@ config = SearchConfig(
     use_ensemble=True,
     strong_model_id="google/gemma-2-9b-it",
     use_diff_format=True,
-    use_cascaded_evaluation=True,
+    use_cascaded_evaluation=True,  # Enable evaluation cascade
     use_parallel_evaluation=True,
     max_workers=4,
+    # use_async=True  # Now enabled by default
 )
 
 agent = AlphaEvolveAgent(config)
-# ... set evaluator and run
+
+# For async execution (default):
+import asyncio
+agent.initialize_async_controller(evaluator)
+stats = await agent.run_async_search(num_generations=100)
+
+# For sync execution:
+# for gen in range(1, config.num_generations + 1):
+#     if not agent.step(gen):
+#         break
 ```
