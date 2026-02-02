@@ -38,8 +38,25 @@ async def run_async_main(args, search_config):
     logger.info(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
     logger.info(f"  Max workers: {search_config.max_workers}")
     logger.info("  ASYNC MODE: ENABLED")
+    
+    # Determine task and log it
+    task_spec = None
     if search_config.use_evolve_blocks and search_config.task_file:
-        logger.info(f"  Task file: {search_config.task_file}")
+        task_loader = TaskLoader(search_config.task_file)
+        task_spec = task_loader.parse()
+        if task_spec.evaluate_function:
+            task_name = f"User-provided task: {search_config.task_file}"
+            logger.info(f"  Task file: {search_config.task_file}")
+            logger.info(f"  Task: {task_name}")
+        else:
+            task_name = "Logistic function approximation (with EVOLVE-BLOCK markers)"
+            logger.info(f"  Task file: {search_config.task_file}")
+            logger.info(f"  Task: {task_name}")
+    else:
+        task_name = "Composite function approximation (without EVOLVE-BLOCK markers)"
+        logger.info(f"  Task: {task_name}")
+    
+    if search_config.use_evolve_blocks:
         logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
     logger.info("=" * 70)
 
@@ -47,25 +64,20 @@ async def run_async_main(args, search_config):
     agent = AlphaEvolveAgent(search_config)
 
     # Set evaluator and task
-    if search_config.use_evolve_blocks and search_config.task_file:
-        # Use task file with EVOLVE-BLOCK markers
-        task_loader = TaskLoader(search_config.task_file)
-        task_spec = task_loader.parse()
-
-        if task_spec.evaluate_function:
-            # Use user-provided evaluate function
-            agent.set_evaluator(task_spec.evaluate_function)
-            initial_code = (
-                task_spec.evolve_blocks[0]
-                if task_spec.evolve_blocks
-                else task_spec.original_code
-            )
-            task_description = "Optimize the code within EVOLVE-BLOCK markers."
-        else:
-            # Fallback to default evaluator with evolve block example
-            evaluator, initial_code = examples.logistic_function_evolve_block_task()
-            agent.set_evaluator(evaluator)
-            task_description = ""
+    if task_spec and task_spec.evaluate_function:
+        # Use user-provided evaluate function
+        agent.set_evaluator(task_spec.evaluate_function)
+        initial_code = (
+            task_spec.evolve_blocks[0]
+            if task_spec.evolve_blocks
+            else task_spec.original_code
+        )
+        task_description = "Optimize the code within EVOLVE-BLOCK markers."
+    elif search_config.use_evolve_blocks and search_config.task_file:
+        # Fallback to default evaluator with evolve block example
+        evaluator, initial_code = examples.logistic_function_evolve_block_task()
+        agent.set_evaluator(evaluator)
+        task_description = ""
     else:
         # Use default example task without evolve blocks
         evaluator, initial_code = examples.composite_function_no_block_task()
@@ -202,8 +214,25 @@ def run_sync_main(args, search_config):
     logger.info(f"  Use diff format: {search_config.use_diff_format}")
     logger.info(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
     logger.info(f"  Use parallel evaluation: {search_config.use_parallel_evaluation}")
+    
+    # Determine task and log it
+    task_spec = None
     if search_config.use_evolve_blocks and search_config.task_file:
-        logger.info(f"  Task file: {search_config.task_file}")
+        task_loader = TaskLoader(search_config.task_file)
+        task_spec = task_loader.parse()
+        if task_spec.evaluate_function:
+            task_name = f"User-provided task: {search_config.task_file}"
+            logger.info(f"  Task file: {search_config.task_file}")
+            logger.info(f"  Task: {task_name}")
+        else:
+            task_name = "Logistic function approximation (with EVOLVE-BLOCK markers)"
+            logger.info(f"  Task file: {search_config.task_file}")
+            logger.info(f"  Task: {task_name}")
+    else:
+        task_name = "Composite function approximation (without EVOLVE-BLOCK markers)"
+        logger.info(f"  Task: {task_name}")
+    
+    if search_config.use_evolve_blocks:
         logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
     logger.info("=" * 70)
 
@@ -211,23 +240,18 @@ def run_sync_main(args, search_config):
     agent = AlphaEvolveAgent(search_config)
 
     # Set evaluator
-    if search_config.use_evolve_blocks and search_config.task_file:
-        # Use task file with EVOLVE-BLOCK markers
-        task_loader = TaskLoader(search_config.task_file)
-        task_spec = task_loader.parse()
-
-        if task_spec.evaluate_function:
-            # Use user-provided evaluate function
-            agent.set_evaluator(task_spec.evaluate_function)
-            initial_code = (
-                task_spec.evolve_blocks[0]
-                if task_spec.evolve_blocks
-                else task_spec.original_code
-            )
-        else:
-            # Fallback to default evaluator with evolve block example
-            evaluator, initial_code = examples.logistic_function_evolve_block_task()
-            agent.set_evaluator(evaluator)
+    if task_spec and task_spec.evaluate_function:
+        # Use user-provided evaluate function
+        agent.set_evaluator(task_spec.evaluate_function)
+        initial_code = (
+            task_spec.evolve_blocks[0]
+            if task_spec.evolve_blocks
+            else task_spec.original_code
+        )
+    elif search_config.use_evolve_blocks and search_config.task_file:
+        # Fallback to default evaluator with evolve block example
+        evaluator, initial_code = examples.logistic_function_evolve_block_task()
+        agent.set_evaluator(evaluator)
     else:
         # Use default example task without evolve blocks
         evaluator, initial_code = examples.composite_function_no_block_task()
