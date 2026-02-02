@@ -148,6 +148,10 @@ class LLMModel:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        # Store the device the model is on
+        self.device = next(self.model.parameters()).device
+        print(f"Model loaded on device: {self.device}")
+
     @torch.no_grad()
     def generate(self, prompt: str) -> str:
         """
@@ -166,7 +170,7 @@ class LLMModel:
         )
 
         # Tokenize
-        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.device)
 
         # Generate
         outputs = self.model.generate(
@@ -231,23 +235,38 @@ class LLMEnsemble:
         Returns:
             Selected model tier
         """
+        # Check which tiers are available
+        available_tiers = list(self.models.keys())
+
         # If we're stuck, try strong model
         if num_generations_without_improvement >= 3:
-            return ModelTier.STRONG
+            if ModelTier.STRONG in available_tiers:
+                return ModelTier.STRONG
+            # Fall back to fast model if strong not available
+            return ModelTier.FAST
 
         # Early exploration: mostly fast models
         if generation < 10:
-            return ModelTier.FAST
+            if ModelTier.FAST in available_tiers:
+                return ModelTier.FAST
+            # Fall back to strong if fast not available
+            return ModelTier.STRONG
 
         # Later generations: more balanced
         if generation < 30:
             # 70% fast, 30% strong
             import random
-
-            return ModelTier.FAST if random.random() < 0.7 else ModelTier.STRONG
+            if random.random() < 0.7 and ModelTier.FAST in available_tiers:
+                return ModelTier.FAST
+            elif ModelTier.STRONG in available_tiers:
+                return ModelTier.STRONG
+            # Fall back to whichever is available
+            return available_tiers[0]
 
         # Final stages: prioritize strong models
-        return ModelTier.STRONG
+        if ModelTier.STRONG in available_tiers:
+            return ModelTier.STRONG
+        return ModelTier.FAST
 
     def mutate(
         self,
