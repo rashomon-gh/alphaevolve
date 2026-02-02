@@ -17,7 +17,7 @@ def write_solution_to_file(code: str, output_file_name: str) -> None:
     try:
         output_path = Path("exported")
         output_path.mkdir(exist_ok=True)
-        
+
         file_path = output_path.joinpath(output_file_name)
 
         with open(file_path, "w") as f:

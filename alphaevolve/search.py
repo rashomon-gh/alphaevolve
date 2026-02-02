@@ -22,7 +22,7 @@ class Program:
 class Evaluator(ABC):
     """
     Abstract base class for evaluators that assign a scalar score to code.
-    
+
     Subclasses must implement the `evaluate` method to provide custom
     evaluation logic.
     """
@@ -31,10 +31,10 @@ class Evaluator(ABC):
     def evaluate(self, code_str: str) -> float:
         """
         Evaluates the code and returns a fitness score.
-        
+
         Args:
             code_str: The code string to evaluate.
-            
+
         Returns:
             A fitness score (higher is better).
         """
@@ -44,11 +44,11 @@ class Evaluator(ABC):
 class NumericalEvaluator(Evaluator):
     """
     An evaluator that tests numerical functions against ground truth data.
-    
+
     Users can provide custom test inputs, targets, and an optional custom
     evaluation function. By default, it calculates Mean Squared Error (MSE)
     between predictions and targets.
-    
+
     Example usage:
     https://gist.github.com/rashomon-gh/c951d651985a573c49fe6384aa82a948
     """
@@ -62,7 +62,7 @@ class NumericalEvaluator(Evaluator):
     ):
         """
         Initialize the NumericalEvaluator.
-        
+
         Args:
             test_inputs: List of input values to test the candidate function with.
             test_targets: List of expected output values corresponding to test_inputs.
@@ -80,10 +80,10 @@ class NumericalEvaluator(Evaluator):
     def evaluate(self, code_str: str) -> float:
         """
         Evaluates the code by executing it and comparing predictions against targets.
-        
+
         Args:
             code_str: The code string to evaluate.
-            
+
         Returns:
             A fitness score (higher is better, negative error), or -inf if evaluation fails.
         """
@@ -110,13 +110,13 @@ class NumericalEvaluator(Evaluator):
     def _get_default_predictions(self, code_str: str) -> List[float]:
         """
         Gets predictions using the default evaluation logic.
-        
+
         Expects the code to define a function named 'solve' that takes a single
         argument and returns a numerical value.
-        
+
         Args:
             code_str: The code string to execute.
-            
+
         Returns:
             List of predictions for each test input.
         """
@@ -137,16 +137,14 @@ class NumericalEvaluator(Evaluator):
 
         return predictions
 
-    def _calculate_mse(
-        self, predictions: List[float], targets: List[float]
-    ) -> float:
+    def _calculate_mse(self, predictions: List[float], targets: List[float]) -> float:
         """
         Calculates Mean Squared Error between predictions and targets.
-        
+
         Args:
             predictions: List of predicted values.
             targets: List of target values.
-            
+
         Returns:
             The Mean Squared Error.
         """

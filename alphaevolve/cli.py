@@ -1,13 +1,11 @@
 import argparse
-from alphaevolve.program_database import SelectionStrategy
-from alphaevolve.prompt_sampler import PromptStyle
 
 
 def create_cli_args():
     parser = argparse.ArgumentParser(
         description="AlphaEvolve: Evolutionary search for program synthesis using LLMs"
     )
-    
+
     # Basic arguments
     parser.add_argument(
         "--model-id",
@@ -39,7 +37,7 @@ def create_cli_args():
         default=5,
         help="Stop if fitness doesn't improve after this many generations (default: 5)",
     )
-    
+
     # Program Database arguments
     parser.add_argument(
         "--selection-strategy",
@@ -54,7 +52,7 @@ def create_cli_args():
         default=0.3,
         help="Weight for diversity in selection (0-1, default: 0.3)",
     )
-    
+
     # Prompt Sampler arguments
     parser.add_argument(
         "--prompt-style",
@@ -68,7 +66,7 @@ def create_cli_args():
         action="store_true",
         help="Disable dynamic prompt formatting",
     )
-    
+
     # LLM Ensemble arguments
     parser.add_argument(
         "--use-ensemble",
@@ -86,7 +84,7 @@ def create_cli_args():
         action="store_true",
         help="Use Search/Replace diff format for mutations",
     )
-    
+
     # Evaluation Engine arguments
     parser.add_argument(
         "--use-cascaded-evaluation",
@@ -104,7 +102,7 @@ def create_cli_args():
         default=4,
         help="Maximum number of parallel workers (default: 4)",
     )
-    
+
     # Task arguments
     parser.add_argument(
         "--task-file",

@@ -3,6 +3,7 @@ AlphaEvolve: LLM-Guided Evolutionary Coding Agent
 
 This script demonstrates AlphaEvolve capabilities with an example optimization task.
 """
+
 from loguru import logger
 
 from alphaevolve.agent import AlphaEvolveAgent
@@ -16,42 +17,44 @@ from alphaevolve.utils import write_solution_to_file
 def create_example_task():
     """
     Create an example optimization task for AlphaEvolve.
-    
+
     The task is to find a function that transforms input x to produce
     the correct output y = x^2 (with some noise added).
     """
     import numpy as np
-    
+
     # Generate synthetic data: y = x^2 + noise
     np.random.seed(42)
     X = np.linspace(0, 10, 20)
     y = X**2 + np.random.normal(0, 2, size=X.shape)
-    
+
     # Create evaluator
     evaluator = NumericalEvaluator(
         test_inputs=list(X),
         test_targets=list(y),
-        error_metric=lambda preds, targets: np.mean((np.array(preds) - np.array(targets))**2) # type: ignore
+        error_metric=lambda preds, targets: np.mean(
+            (np.array(preds) - np.array(targets)) ** 2
+        ),  # type: ignore
     )
-    
+
     # Initial heuristic
     initial_code = """
 def solve(x):
     # Initial guess: linear relationship
     return x * 5
 """
-    
+
     return evaluator, initial_code
 
 
 def main():
     """Main entry point for AlphaEvolve."""
     args = create_cli_args()
-    
+
     # Map string arguments to enums
     from alphaevolve.program_database import SelectionStrategy
     from alphaevolve.prompt_sampler import PromptStyle
-    
+
     # Create configuration
     search_config = SearchConfig(
         model_id=args.model_id,
@@ -72,11 +75,11 @@ def main():
         task_file=args.task_file,
         use_evolve_blocks=args.use_evolve_blocks,
     )
-    
+
     # Print configuration
-    logger.info("="*70)
+    logger.info("=" * 70)
     logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent")
-    logger.info("="*70)
+    logger.info("=" * 70)
     logger.info("Configuration:")
     logger.info(f"  Model ID: {search_config.model_id}")
     logger.info(f"  Population size: {search_config.population_size}")
@@ -90,21 +93,25 @@ def main():
     if search_config.use_evolve_blocks and search_config.task_file:
         logger.info(f"  Task file: {search_config.task_file}")
         logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
-    logger.info("="*70)
-    
+    logger.info("=" * 70)
+
     # Initialize agent
     agent = AlphaEvolveAgent(search_config)
-    
+
     # Set evaluator
     if search_config.use_evolve_blocks and search_config.task_file:
         # Use task file with EVOLVE-BLOCK markers
         task_loader = TaskLoader(search_config.task_file)
         task_spec = task_loader.parse()
-        
+
         if task_spec.evaluate_function:
             # Use user-provided evaluate function
             agent.set_evaluator(task_spec.evaluate_function)
-            initial_code = task_spec.evolve_blocks[0] if task_spec.evolve_blocks else task_spec.original_code
+            initial_code = (
+                task_spec.evolve_blocks[0]
+                if task_spec.evolve_blocks
+                else task_spec.original_code
+            )
         else:
             # Fallback to default evaluator
             evaluator, initial_code = create_example_task()
@@ -113,36 +120,38 @@ def main():
         # Use default example task
         evaluator, initial_code = create_example_task()
         agent.set_evaluator(evaluator)
-    
+
     # Seed population
     logger.info("Seeding initial population...")
     agent.seed_population(initial_code)
-    
+
     # Run evolutionary search
-    logger.info(f"Starting evolutionary search for {search_config.num_generations} generations...")
-    logger.info("-"*70)
-    
+    logger.info(
+        f"Starting evolutionary search for {search_config.num_generations} generations..."
+    )
+    logger.info("-" * 70)
+
     for gen in range(1, search_config.num_generations + 1):
         should_continue = agent.step(gen)
         if not should_continue:
             break
-    
+
     # Print final results
-    logger.info("\n" + "="*70)
+    logger.info("\n" + "=" * 70)
     logger.info("EVOLUTIONARY SEARCH COMPLETE")
-    logger.info("="*70)
-    
+    logger.info("=" * 70)
+
     best_program = agent.get_best_program()
     if best_program:
         logger.info(f"Best fitness achieved: {best_program.fitness:.4f}")
         logger.info(f"Found at generation: {best_program.generation}")
-        
-        logger.info("\n" + "-"*70)
+
+        logger.info("\n" + "-" * 70)
         logger.info("Best Solution:")
-        logger.info("-"*70)
+        logger.info("-" * 70)
         logger.info(best_program.code)
-        logger.info("-"*70)
-        
+        logger.info("-" * 70)
+
         # Export solution
         output_file = f"solution_gen_{best_program.generation}.py"
         try:
@@ -150,7 +159,7 @@ def main():
             logger.success(f"Solution exported to: {output_file}")
         except IOError as e:
             logger.error(f"Failed to export solution: {e}")
-        
+
         # Print population statistics
         stats = agent.get_population_stats()
         logger.info("\nFinal Population Statistics:")

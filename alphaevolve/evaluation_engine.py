@@ -3,8 +3,8 @@ Evaluation Engine module for AlphaEvolve.
 
 Implements cascaded evaluation and parallel execution for efficiency.
 """
-import asyncio
-from typing import List, Dict, Any, Optional, Callable, Tuple
+
+from typing import List, Dict, Optional, Callable, Tuple
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
@@ -15,7 +15,7 @@ from alphaevolve.program_database import Program
 class EvaluationResult:
     """
     Result of evaluating a program.
-    
+
     Attributes:
         program: The evaluated program
         fitness: Overall fitness score
@@ -23,26 +23,29 @@ class EvaluationResult:
         passed_stage: Which evaluation stages passed
         error: Error message if evaluation failed
     """
+
     program: Program
     fitness: float
     metrics: Dict[str, float]
     passed_stage: int
     error: Optional[str] = None
-    
+
     def __repr__(self):
-        return f"EvaluationResult(fitness={self.fitness:.4f}, stage={self.passed_stage})"
+        return (
+            f"EvaluationResult(fitness={self.fitness:.4f}, stage={self.passed_stage})"
+        )
 
 
 class CascadedEvaluator:
     """
     Implements cascaded (multi-stage) evaluation for efficiency.
-    
+
     Strategy:
     - Stage 1: Fast, small-scale tests. Quick filter for obviously bad code.
     - Stage 2: Medium-scale tests. More thorough evaluation.
     - Stage 3: Full-scale, expensive tests. Only for promising candidates.
     """
-    
+
     def __init__(
         self,
         stage1_func: Callable[[str], Tuple[bool, float]],
@@ -53,7 +56,7 @@ class CascadedEvaluator:
     ):
         """
         Initialize the cascaded evaluator.
-        
+
         Args:
             stage1_func: Fast evaluation function (code) -> (passed, score)
             stage2_func: Medium evaluation function (code) -> (passed, score)
@@ -66,14 +69,14 @@ class CascadedEvaluator:
         self.stage3_func = stage3_func
         self.stage2_threshold = stage2_threshold
         self.stage3_threshold = stage3_threshold
-    
+
     def evaluate(self, code: str) -> EvaluationResult:
         """
         Evaluate code using cascaded approach.
-        
+
         Args:
             code: Code to evaluate
-            
+
         Returns:
             EvaluationResult with fitness and metrics
         """
@@ -88,7 +91,7 @@ class CascadedEvaluator:
                     passed_stage=0,
                     error="Failed stage 1 (fast test)",
                 )
-            
+
             # Stage 2: Medium test
             if self.stage2_func is not None:
                 passed2, score2 = self.stage2_func(code)
@@ -99,7 +102,7 @@ class CascadedEvaluator:
                         metrics={"stage1_score": score1, "stage2_score": score2},
                         passed_stage=1,
                     )
-            
+
             # Stage 3: Full test
             if self.stage3_func is not None:
                 passed3, score3 = self.stage3_func(code)
@@ -114,7 +117,7 @@ class CascadedEvaluator:
                         },
                         passed_stage=2,
                     )
-                
+
                 return EvaluationResult(
                     program=Program(code=code),
                     fitness=score3,
@@ -125,7 +128,7 @@ class CascadedEvaluator:
                     },
                     passed_stage=3,
                 )
-            
+
             # If only stage 1 and 2
             return EvaluationResult(
                 program=Program(code=code),
@@ -133,7 +136,7 @@ class CascadedEvaluator:
                 metrics={"stage1_score": score1, "stage2_score": score2},
                 passed_stage=2,
             )
-            
+
         except Exception as e:
             return EvaluationResult(
                 program=Program(code=code),
@@ -148,7 +151,7 @@ class ParallelEvaluator:
     """
     Evaluates multiple programs in parallel for throughput.
     """
-    
+
     def __init__(
         self,
         evaluate_func: Callable[[str], EvaluationResult],
@@ -156,33 +159,33 @@ class ParallelEvaluator:
     ):
         """
         Initialize the parallel evaluator.
-        
+
         Args:
             evaluate_func: Function to evaluate a single program
             max_workers: Maximum number of parallel workers
         """
         self.evaluate_func = evaluate_func
         self.max_workers = max_workers
-    
+
     def evaluate_batch(self, codes: List[str]) -> List[EvaluationResult]:
         """
         Evaluate multiple codes in parallel.
-        
+
         Args:
             codes: List of code strings to evaluate
-            
+
         Returns:
             List of EvaluationResults in the same order as input
         """
         results = [None] * len(codes)
-        
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all evaluation tasks
             future_to_index = {
                 executor.submit(self.evaluate_func, code): idx
                 for idx, code in enumerate(codes)
             }
-            
+
             # Collect results as they complete
             for future in as_completed(future_to_index):
                 idx = future_to_index[future]
@@ -196,40 +199,40 @@ class ParallelEvaluator:
                         passed_stage=0,
                         error=str(e),
                     )
-        
+
         return results
-    
+
     def evaluate_programs(self, programs: List[Program]) -> List[EvaluationResult]:
         """
         Evaluate multiple programs in parallel.
-        
+
         Args:
             programs: List of Program objects to evaluate
-            
+
         Returns:
             List of EvaluationResults
         """
         codes = [p.code for p in programs]
         results = self.evaluate_batch(codes)
-        
+
         # Update programs with fitness
         for program, result in zip(programs, results):
             program.fitness = result.fitness
             program.metadata.update(result.metrics)
-        
+
         return results
 
 
 class MultiObjectiveEvaluator:
     """
     Evaluates programs on multiple objectives.
-    
+
     Supports:
     - Pareto front selection
     - Weighted scalarization
     - Constraint handling
     """
-    
+
     def __init__(
         self,
         evaluate_func: Callable[[str], Dict[str, float]],
@@ -238,7 +241,7 @@ class MultiObjectiveEvaluator:
     ):
         """
         Initialize the multi-objective evaluator.
-        
+
         Args:
             evaluate_func: Function that returns dictionary of metrics
             weights: Optional weights for scalarization
@@ -247,21 +250,21 @@ class MultiObjectiveEvaluator:
         self.evaluate_func = evaluate_func
         self.weights = weights or {}
         self.constraints = constraints or {}
-    
+
     def evaluate(self, code: str) -> EvaluationResult:
         """
         Evaluate code with multiple objectives.
-        
+
         Args:
             code: Code to evaluate
-            
+
         Returns:
             EvaluationResult with scalarized fitness
         """
         try:
             # Get all metrics
             metrics = self.evaluate_func(code)
-            
+
             # Check constraints
             for metric_name, (min_val, max_val) in self.constraints.items():
                 if metric_name in metrics:
@@ -274,14 +277,14 @@ class MultiObjectiveEvaluator:
                             passed_stage=0,
                             error=f"Constraint violation: {metric_name}={value}",
                         )
-            
+
             # Scalarize if weights provided
             if self.weights:
                 fitness = 0.0
                 for metric_name, weight in self.weights.items():
                     if metric_name in metrics:
                         fitness += weight * metrics[metric_name]
-                
+
                 # Normalize by total weight
                 total_weight = sum(self.weights.values())
                 if total_weight > 0:
@@ -292,14 +295,14 @@ class MultiObjectiveEvaluator:
                     fitness = list(metrics.values())[0]
                 else:
                     fitness = np.mean(list(metrics.values()))
-            
+
             return EvaluationResult(
                 program=Program(code=code),
                 fitness=fitness,
                 metrics=metrics,
                 passed_stage=1,
             )
-            
+
         except Exception as e:
             return EvaluationResult(
                 program=Program(code=code),
@@ -308,35 +311,35 @@ class MultiObjectiveEvaluator:
                 passed_stage=0,
                 error=str(e),
             )
-    
+
     def find_pareto_front(self, programs: List[Program]) -> List[Program]:
         """
         Find the Pareto front among programs.
-        
+
         Args:
             programs: List of programs to analyze
-            
+
         Returns:
             List of non-dominated programs
         """
         if not programs:
             return []
-        
+
         # Extract metrics
         metrics_list = [p.metadata for p in programs]
-        
+
         # Find non-dominated points
         pareto_front = []
         for i, program in enumerate(programs):
             metrics_i = metrics_list[i]
             is_dominated = False
-            
+
             for j, other_program in enumerate(programs):
                 if i == j:
                     continue
-                
+
                 metrics_j = metrics_list[j]
-                
+
                 # Check if j dominates i
                 dominates = True
                 for metric_name in metrics_i:
@@ -344,14 +347,14 @@ class MultiObjectiveEvaluator:
                         if metrics_j[metric_name] < metrics_i[metric_name]:
                             dominates = False
                             break
-                
+
                 if dominates:
                     is_dominated = True
                     break
-            
+
             if not is_dominated:
                 pareto_front.append(program)
-        
+
         return pareto_front
 
 
@@ -359,7 +362,7 @@ class EvaluationEngine:
     """
     Main evaluation engine that combines cascaded, parallel, and multi-objective evaluation.
     """
-    
+
     def __init__(
         self,
         base_evaluator: Callable[[str], float],
@@ -371,7 +374,7 @@ class EvaluationEngine:
     ):
         """
         Initialize the evaluation engine.
-        
+
         Args:
             base_evaluator: Base evaluation function (code) -> float
             use_cascaded: Whether to use cascaded evaluation
@@ -389,7 +392,7 @@ class EvaluationEngine:
         self.use_multi_objective = use_multi_objective
         self.max_workers = max_workers
         self.fast_eval_ratio = fast_eval_ratio
-        
+
         # Setup evaluator
         if use_cascaded:
             # Setup cascaded evaluator (simplified version)
@@ -401,13 +404,13 @@ class EvaluationEngine:
             self.multi_objective_evaluator = MultiObjectiveEvaluator(
                 evaluate_func=lambda code: {"fitness": base_evaluator(code)},
             )
-        
+
         if use_parallel:
             self.parallel_evaluator = ParallelEvaluator(
                 evaluate_func=self._evaluate_single,
                 max_workers=max_workers,
             )
-    
+
     def _evaluate_single(self, code: str) -> EvaluationResult:
         """Evaluate a single code string."""
         if self.use_cascaded:
@@ -431,27 +434,27 @@ class EvaluationEngine:
                     passed_stage=0,
                     error=str(e),
                 )
-    
+
     def evaluate(self, code: str) -> float:
         """
         Evaluate code and return fitness.
-        
+
         Args:
             code: Code to evaluate
-            
+
         Returns:
             Fitness score (higher is better)
         """
         result = self._evaluate_single(code)
         return result.fitness
-    
+
     def evaluate_batch(self, codes: List[str]) -> List[float]:
         """
         Evaluate multiple codes.
-        
+
         Args:
             codes: List of codes to evaluate
-            
+
         Returns:
             List of fitness scores
         """
@@ -460,21 +463,21 @@ class EvaluationEngine:
             return [r.fitness for r in results]
         else:
             return [self.evaluate(code) for code in codes]
-    
+
     def evaluate_programs(self, programs: List[Program]) -> List[Program]:
         """
         Evaluate multiple programs and update their fitness.
-        
+
         Args:
             programs: List of programs to evaluate
-            
+
         Returns:
             List of evaluated programs
         """
         codes = [p.code for p in programs]
         fitnesses = self.evaluate_batch(codes)
-        
+
         for program, fitness in zip(programs, fitnesses):
             program.fitness = fitness
-        
+
         return programs
