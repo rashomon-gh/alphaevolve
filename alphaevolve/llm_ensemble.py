@@ -40,7 +40,7 @@ class ModelConfig:
     max_tokens: int = 512
     temperature: float = 0.7
     top_p: float = 0.9
-    use_diff: bool = False
+    use_diff: bool = True
     dtype: torch.dtype = torch.float16
 
 
