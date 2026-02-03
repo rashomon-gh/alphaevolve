@@ -72,7 +72,7 @@ async def run_async_main(args, search_config):
             if task_spec.evolve_blocks
             else task_spec.original_code
         )
-        task_description = "Optimize the code within EVOLVE-BLOCK markers."
+        task_description = "Rewrite the code within EVOLVE-BLOCK markers to correctly fit the target data."
     elif search_config.use_evolve_blocks and search_config.task_file:
         # Fallback to default evaluator with evolve block example
         evaluator, initial_code = examples.logistic_function_evolve_block_task()

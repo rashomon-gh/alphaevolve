@@ -47,7 +47,7 @@ def logistic_function_evolve_block_task() -> Tuple[NumericalEvaluator, str]:
 
     # Initial code with EVOLVE-BLOCK markers
     initial_code = """
-# EVOLVE-BLOCK: optimize this function to better fit the target data
+# EVOLVE-BLOCK: rewrite this function to correctly fit the target data
 def solve(x):
     # Initial guess: simple sigmoid approximation
     # This is a crude approximation that will need significant improvement
@@ -137,7 +137,7 @@ def damped_sine_wave_task() -> Tuple[NumericalEvaluator, str]:
 
     # Initial code with EVOLVE-BLOCK markers
     initial_code = """
-# EVOLVE-BLOCK: optimize this function to better fit the target data
+# EVOLVE-BLOCK: rewrite this function to correctly fit the target data
 def solve(x):
     # Initial guess: simple undamped sine wave
     # Missing the exponential decay component
