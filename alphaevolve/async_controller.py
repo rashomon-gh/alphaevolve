@@ -13,6 +13,7 @@ import time
 from typing import List, Optional, Dict, Any, Callable
 from dataclasses import dataclass
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
 
 from alphaevolve.config import SearchConfig
@@ -406,6 +407,9 @@ class AsyncController:
             use_diff_format=config.use_diff_format,
         )
 
+        # Thread pool executor for blocking operations (CPU-bound evaluation)
+        self.executor = ThreadPoolExecutor(max_workers=config.max_workers)
+
         # Initialize evaluation worker pool
         self.eval_workers = [
             AsyncEvaluatorWorker(
@@ -446,12 +450,24 @@ class AsyncController:
 
     async def stop_workers(self):
         """Stop all background worker tasks."""
+        # Cancel all worker tasks
         for task in self.worker_tasks:
-            task.cancel()
+            if not task.done():
+                task.cancel()
 
-        # Wait for tasks to cancel
-        await asyncio.gather(*self.worker_tasks, return_exceptions=True)
+        # Wait for tasks to cancel with timeout
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*self.worker_tasks, return_exceptions=True),
+                timeout=10.0  # 10 second timeout for graceful shutdown
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Timeout while stopping workers, proceeding anyway")
+
         self.worker_tasks.clear()
+
+        # Shutdown executor
+        self.executor.shutdown(wait=True)
 
         logger.info("Stopped all workers")
 
@@ -545,13 +561,53 @@ class AsyncController:
             )
             await self.evaluation_queue.put(eval_request)
 
-        # Wait for all evaluations to complete
+        # Wait for all evaluations to complete with timeout to prevent deadlock
         logger.info(f"Evaluating {len(successful_generations)} programs...")
         evaluation_results = []
-        for _ in range(len(successful_generations)):
-            result = await self.result_queue.get()
-            evaluation_results.append(result)
-            self.result_queue.task_done()
+        expected_results = len(successful_generations)
+
+        # Use asyncio.wait_for with timeout to prevent hanging
+        timeout = 300.0  # 5 minutes timeout per batch
+        try:
+            for i in range(expected_results):
+                try:
+                    result = await asyncio.wait_for(
+                        self.result_queue.get(),
+                        timeout=timeout / expected_results
+                    )
+                    evaluation_results.append(result)
+                    self.result_queue.task_done()
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout waiting for evaluation result {i+1}/{expected_results}")
+                    # Add a failure result for the timeout
+                    evaluation_results.append(
+                        AsyncEvaluationResult(
+                            code="",
+                            fitness=-float("inf"),
+                            metrics={},
+                            passed_stage=0,
+                            error="Evaluation timeout",
+                            generation_idx=generation_idx,
+                            request_id=-1,
+                            evaluation_time=timeout,
+                        )
+                    )
+        except Exception as e:
+            logger.error(f"Error collecting evaluation results: {e}")
+            # Add failure results for any missing evaluations
+            while len(evaluation_results) < expected_results:
+                evaluation_results.append(
+                    AsyncEvaluationResult(
+                        code="",
+                        fitness=-float("inf"),
+                        metrics={},
+                        passed_stage=0,
+                        error=f"Collection error: {str(e)}",
+                        generation_idx=generation_idx,
+                        request_id=-1,
+                        evaluation_time=0.0,
+                    )
+                )
 
         logger.info(f"Completed evaluation of {len(evaluation_results)} programs")
 

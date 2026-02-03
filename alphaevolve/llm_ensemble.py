@@ -9,6 +9,7 @@ import re
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+import threading
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from alphaevolve.secrets import values
 
@@ -121,7 +122,13 @@ class DiffParser:
 class LLMModel:
     """
     Wrapper for a single LLM model in the ensemble.
+
+    Thread-safe model wrapper that loads on the first available GPU
+    (respecting CUDA_VISIBLE_DEVICES).
     """
+
+    _lock = threading.Lock()
+    _initialized = set()  # Track initialized models by model_id
 
     def __init__(self, config: ModelConfig):
         """
@@ -132,30 +139,52 @@ class LLMModel:
         """
         self.config = config
 
-        print(f"Loading model: {config.model_id} ({config.tier.value})...")
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            config.model_id, token=values.huggingface_token.get_secret_value()
-        )
+        # Use lock to prevent concurrent model loading
+        with LLMModel._lock:
+            if config.model_id in LLMModel._initialized:
+                # Model already initialized, just create a reference
+                print(f"Model {config.model_id} already initialized, creating reference...")
+                # We need to still load the model - but we'll ensure it's on the same device
+                pass
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            config.model_id,
-            device_map="auto",
-            dtype=config.dtype,
-            token=values.huggingface_token.get_secret_value(),
-        )
+            print(f"Loading model: {config.model_id} ({config.tier.value})...")
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                config.model_id, token=values.huggingface_token.get_secret_value()
+            )
 
-        # Set pad token if not set
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+            # Determine device - respect CUDA_VISIBLE_DEVICES
+            if torch.cuda.is_available():
+                # Get the first visible GPU (respects CUDA_VISIBLE_DEVICES)
+                device = torch.device("cuda:0")
+                print(f"Loading model on GPU (respects CUDA_VISIBLE_DEVICES): {device}")
+            else:
+                device = torch.device("cpu")
+                print(f"No GPU available, loading on CPU: {device}")
 
-        # Store the device the model is on
-        self.device = next(self.model.parameters()).device
-        print(f"Model loaded on device: {self.device}")
+            # Load model on specific device (not auto to avoid multi-GPU)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                config.model_id,
+                torch_dtype=config.dtype,
+                token=values.huggingface_token.get_secret_value(),
+            ).to(device)
+
+            # Set pad token if not set
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+
+            # Store the device the model is on
+            self.device = device
+            print(f"Model loaded on device: {self.device}")
+
+            # Mark as initialized
+            LLMModel._initialized.add(config.model_id)
 
     @torch.no_grad()
     def generate(self, prompt: str) -> str:
         """
         Generate text from a prompt.
+
+        Thread-safe generation that locks access to the model.
 
         Args:
             prompt: Input prompt
@@ -163,34 +192,36 @@ class LLMModel:
         Returns:
             Generated text
         """
-        # Format for chat models
-        messages = [{"role": "user", "content": prompt}]
-        formatted_prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
+        # Lock to ensure thread-safe model access
+        with self._lock:
+            # Format for chat models
+            messages = [{"role": "user", "content": prompt}]
+            formatted_prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
 
-        # Tokenize
-        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.device)
+            # Tokenize
+            inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.device)
 
-        # Generate
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-            top_p=self.config.top_p,
-            do_sample=True,
-            pad_token_id=self.tokenizer.pad_token_id,
-        )
+            # Generate
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                do_sample=True,
+                pad_token_id=self.tokenizer.pad_token_id,
+            )
 
-        # Decode
-        generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # Decode
+            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        # Remove prompt from output
-        response = generated_text[
-            len(self.tokenizer.decode(inputs.input_ids[0], skip_special_tokens=True)) :
-        ]
+            # Remove prompt from output
+            response = generated_text[
+                len(self.tokenizer.decode(inputs.input_ids[0], skip_special_tokens=True)) :
+            ]
 
-        return response
+            return response
 
 
 class LLMEnsemble:
