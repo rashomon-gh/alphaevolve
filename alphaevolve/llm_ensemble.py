@@ -155,7 +155,7 @@ class LLMModel:
             # Determine device - respect CUDA_VISIBLE_DEVICES
             if torch.cuda.is_available():
                 # Get the first visible GPU (respects CUDA_VISIBLE_DEVICES)
-                device = torch.device("cuda:0")
+                device = torch.device("cuda")
                 print(f"Loading model on GPU (respects CUDA_VISIBLE_DEVICES): {device}")
             else:
                 device = torch.device("cpu")
