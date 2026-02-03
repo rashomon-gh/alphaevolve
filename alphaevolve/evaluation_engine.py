@@ -4,7 +4,7 @@ Evaluation Engine module for AlphaEvolve.
 Implements cascaded evaluation and parallel execution for efficiency.
 """
 
-from typing import List, Dict, Optional, Callable, Tuple
+from typing import List, Dict, Optional, Callable, Tuple, Literal
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
@@ -371,6 +371,7 @@ class EvaluationEngine:
         use_multi_objective: bool = False,
         max_workers: int = 4,
         fast_eval_ratio: float = 0.3,
+        optimization_strategy: Literal["maximize", "minimize"] = "maximize",
     ):
         """
         Initialize the evaluation engine.
@@ -382,6 +383,8 @@ class EvaluationEngine:
             use_multi_objective: Whether to use multi-objective evaluation
             max_workers: Maximum parallel workers
             fast_eval_ratio: Ratio of fast to full evaluation in cascaded mode
+            optimization_strategy: Whether to 'maximize' (higher is better) or 'minimize'
+                (lower error is better) the metric. Use 'minimize' for error metrics like MSE.
         """
         self.base_evaluator = base_evaluator
         self.use_cascaded = use_cascaded
@@ -389,9 +392,7 @@ class EvaluationEngine:
         self.use_multi_objective = use_multi_objective
         self.max_workers = max_workers
         self.fast_eval_ratio = fast_eval_ratio
-        self.use_multi_objective = use_multi_objective
-        self.max_workers = max_workers
-        self.fast_eval_ratio = fast_eval_ratio
+        self.optimization_strategy = optimization_strategy
 
         # Setup evaluator
         if use_cascaded:

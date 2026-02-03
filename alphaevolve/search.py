@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Union, Literal
+import numpy as np
 
 
 @dataclass
@@ -59,6 +60,7 @@ class NumericalEvaluator(Evaluator):
         test_targets: List[Union[int, float]],
         evaluation_func: Optional[Callable[[str], List[Union[int, float]]]] = None,
         error_metric: Optional[Callable[[List[float], List[float]], float]] = None,
+        optimization_strategy: Literal["maximize", "minimize"] = "maximize",
     ):
         """
         Initialize the NumericalEvaluator.
@@ -71,11 +73,14 @@ class NumericalEvaluator(Evaluator):
                 a function named 'solve' that takes a single argument.
             error_metric: Optional custom function that takes predictions and targets
                 and returns an error value. If None, uses Mean Squared Error (MSE).
+            optimization_strategy: Whether to 'maximize' (higher is better) or 'minimize'
+                (lower error is better) the metric. Use 'minimize' for error metrics like MSE.
         """
         self.test_inputs = test_inputs
         self.test_targets = test_targets
         self.evaluation_func = evaluation_func
         self.error_metric = error_metric
+        self.optimization_strategy = optimization_strategy
 
     def evaluate(self, code_str: str) -> float:
         """
@@ -85,7 +90,7 @@ class NumericalEvaluator(Evaluator):
             code_str: The code string to evaluate.
 
         Returns:
-            A fitness score (higher is better, negative error), or -inf if evaluation fails.
+            A fitness score (higher is better), or -inf if evaluation fails.
         """
         try:
             # Get predictions using either custom evaluation function or default
@@ -100,8 +105,18 @@ class NumericalEvaluator(Evaluator):
             else:
                 error = self._calculate_mse(predictions, self.test_targets)
 
-            # Return negative error (maximization problem)
-            return -error
+            # Convert error to fitness based on optimization strategy
+            if self.optimization_strategy == "maximize":
+                # For metrics where higher is better (e.g., accuracy)
+                fitness = error
+            else:  # minimize
+                # For error metrics where lower is better (e.g., MSE)
+                # Use negative log transformation to ensure fitness increases as error decreases
+                # Adding a small epsilon to avoid log(0)
+                epsilon = 1e-10
+                fitness = -np.log(error + epsilon)
+
+            return fitness
 
         except Exception:
             # Code that crashes gets the lowest fitness

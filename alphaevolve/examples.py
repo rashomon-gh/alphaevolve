@@ -43,6 +43,7 @@ def logistic_function_evolve_block_task() -> Tuple[NumericalEvaluator, str]:
         error_metric=lambda preds, targets: np.mean(
             (np.array(preds) - np.array(targets)) ** 2
         ),  # type: ignore
+        optimization_strategy="minimize",
     )
 
     # Initial code with EVOLVE-BLOCK markers
@@ -77,7 +78,7 @@ def composite_function_no_block_task() -> Tuple[NumericalEvaluator, str]:
 
     # Generate synthetic data: composite function + noise
     X = np.linspace(0, 8, 25)
-    y = X**2 * np.sin(X) + 2 * np.cos(X / 2) + np.random.normal(0, 2, size=X.shape)
+    y = X**2 * np.sin(X) + 2 * np.cos(X / 2)
 
     # Create evaluator
     evaluator = NumericalEvaluator(
@@ -86,6 +87,7 @@ def composite_function_no_block_task() -> Tuple[NumericalEvaluator, str]:
         error_metric=lambda preds, targets: np.mean(
             (np.array(preds) - np.array(targets)) ** 2
         ),  # type: ignore
+        optimization_strategy="minimize",
     )
 
     # Initial code WITHOUT evolve block markers - entire function will be rewritten
@@ -133,6 +135,7 @@ def damped_sine_wave_task() -> Tuple[NumericalEvaluator, str]:
         error_metric=lambda preds, targets: np.mean(
             (np.array(preds) - np.array(targets)) ** 2
         ),  # type: ignore
+        optimization_strategy="minimize",
     )
 
     # Initial code with EVOLVE-BLOCK markers
@@ -187,6 +190,7 @@ def piecewise_function_task() -> Tuple[NumericalEvaluator, str]:
         error_metric=lambda preds, targets: np.mean(
             (np.array(preds) - np.array(targets)) ** 2
         ),  # type: ignore
+        optimization_strategy="minimize",
     )
 
     # Initial code WITHOUT evolve block markers
