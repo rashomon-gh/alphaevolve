@@ -166,7 +166,7 @@ class LLMModel:
                 config.model_id,
                 torch_dtype=config.dtype,
                 token=values.huggingface_token.get_secret_value(),
-            ).to(device)
+            ).to(device) # type: ignore
 
             # Set pad token if not set
             if self.tokenizer.pad_token is None:
@@ -416,18 +416,18 @@ class LLMEnsemble:
         Returns:
             Configured LLMEnsemble instance
         """
-        # Fast model: Gemma-2B or similar
+        # Fast model: Gemma-3-12B or similar       
         fast_config = ModelConfig(
-            model_id="google/gemma-2b-it",
+            model_id="google/gemma-3-12b-it",
             tier=ModelTier.FAST,
             max_tokens=256,
             temperature=0.8,
             use_diff=False,
         )
 
-        # Strong model: Gemma-7B or similar
+        # Strong model: Gemma-3-27B or similar
         strong_config = ModelConfig(
-            model_id="google/gemma-2-9b-it",
+            model_id="google/gemma-3-27b-it",
             tier=ModelTier.STRONG,
             max_tokens=512,
             temperature=0.7,
