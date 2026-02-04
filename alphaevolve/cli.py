@@ -3,7 +3,7 @@ import argparse
 
 def create_cli_args():
     parser = argparse.ArgumentParser(
-        description="AlphaEvolve: Evolutionary search for program synthesis using LLMs"
+        description="AlphaEvolve: Evolutionary search for program synthesis using LLMs (Agentic Mode)"
     )
 
     # Basic arguments
@@ -17,19 +17,19 @@ def create_cli_args():
         "--population-size",
         type=int,
         default=5,
-        help="Number of candidate programs in the population (default: 5)",
+        help="Number of candidate programs in population (default: 5)",
     )
     parser.add_argument(
         "--num-generations",
         type=int,
         default=50,
-        help="Number of generations to run the evolutionary search (default: 50)",
+        help="Number of generations to run evolutionary search (default: 50)",
     )
     parser.add_argument(
-        "--num-parent-context",
+        "--parallel-slots",
         type=int,
-        default=2,
-        help="Number of best programs to include in LLM context for generation (default: 2)",
+        default=50,
+        help="Maximum number of parallel Search Agents (default: 50)",
     )
     parser.add_argument(
         "--early-stopping-threshold",
@@ -38,7 +38,7 @@ def create_cli_args():
         help="Stop if fitness doesn't improve after this many generations (default: 5)",
     )
 
-    # Program Database arguments
+    # Database arguments
     parser.add_argument(
         "--selection-strategy",
         type=str,
@@ -52,32 +52,37 @@ def create_cli_args():
         default=0.3,
         help="Weight for diversity in selection (0-1, default: 0.3)",
     )
-
-    # Prompt Sampler arguments
     parser.add_argument(
-        "--prompt-style",
-        type=str,
-        choices=["standard", "concise", "verbose", "analytical", "creative"],
-        default="standard",
-        help="Prompt style for LLM (default: standard)",
+        "--archive-size",
+        type=int,
+        default=1000,
+        help="Size of archive for resurfacing old solutions (default: 1000)",
     )
     parser.add_argument(
-        "--no-dynamic-formatting",
-        action="store_true",
-        help="Disable dynamic prompt formatting",
+        "--num-islands",
+        type=int,
+        default=3,
+        help="Number of islands for island model (default: 3)",
     )
 
-    # LLM Ensemble arguments
+    # LLM arguments
     parser.add_argument(
-        "--use-ensemble",
-        action="store_true",
-        help="Use LLM ensemble with fast and strong models",
+        "--max-tokens",
+        type=int,
+        default=512,
+        help="Maximum tokens to generate (default: 512)",
     )
     parser.add_argument(
-        "--strong-model-id",
-        type=str,
-        default=None,
-        help="HuggingFace model ID for strong model in ensemble",
+        "--temperature",
+        type=float,
+        default=0.7,
+        help="LLM sampling temperature (default: 0.7)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.9,
+        help="LLM nucleus sampling parameter (default: 0.9)",
     )
     parser.add_argument(
         "--use-diff-format",
@@ -85,35 +90,17 @@ def create_cli_args():
         help="Use Search/Replace diff format for mutations",
     )
 
-    # Evaluation Engine arguments
+    # Evaluation arguments
     parser.add_argument(
         "--use-cascaded-evaluation",
         action="store_true",
         help="Use cascaded (multi-stage) evaluation",
     )
     parser.add_argument(
-        "--use-parallel-evaluation",
-        action="store_true",
-        help="Use parallel evaluation",
-    )
-    parser.add_argument(
-        "--max-workers",
-        type=int,
-        default=4,
-        help="Maximum number of parallel workers (default: 4)",
-    )
-
-    # Sync mode argument (to override default async)
-    parser.add_argument(
-        "--use-sync",
-        action="store_true",
-        help="Use synchronous execution mode (default is async)",
-    )
-    parser.add_argument(
-        "--async-queue-size",
-        type=int,
-        default=100,
-        help="Queue size for async workers (default: 100)",
+        "--fast-eval-ratio",
+        type=float,
+        default=0.3,
+        help="Ratio of fast to full evaluation in cascade (default: 0.3)",
     )
 
     # Task arguments
