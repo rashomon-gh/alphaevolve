@@ -85,7 +85,38 @@ def main():
     # Set evaluator and task
     if task_spec and task_spec.evaluate_function:
         # Use user-provided evaluate function
-        evaluator = task_spec.evaluate_function
+        # The evaluate function from task files takes no arguments - it expects
+        # the code to be loaded in its namespace. We need to wrap it to:
+        # 1. Take the evolved code block as input
+        # 2. Reconstruct the full code by replacing EVOLVE-BLOCK
+        # 3. Execute the code
+        # 4. Call the evaluate function
+        task_loader_obj = TaskLoader(str(config.task_file))
+
+        def make_evaluator_wrapper(loader):
+            def wrapper(code: str) -> float:
+                # Reconstruct full code with evolved block
+                full_code = loader.reconstruct_code([code])
+                # Execute in a namespace - use same dict for globals and locals
+                # so functions can find other functions defined in the same scope
+                namespace = {}
+                exec(full_code, namespace, namespace)
+                # Call the evaluate function from the namespace
+                evaluate_func = namespace.get("evaluate")
+                if evaluate_func is None or not callable(evaluate_func):
+                    raise ValueError("evaluate function not found in code")
+                result = evaluate_func()
+                # Handle dict return values - extract first numeric value
+                if isinstance(result, dict):
+                    for value in result.values():
+                        if isinstance(value, (int, float)):
+                            return float(value)
+                    return 0.0
+                return float(result) if isinstance(result, (int, float)) else 0.0
+
+            return wrapper
+
+        evaluator = make_evaluator_wrapper(task_loader_obj)
         initial_code = (
             task_spec.evolve_blocks[0]
             if task_spec.evolve_blocks
@@ -95,10 +126,14 @@ def main():
     elif config.use_evolve_blocks and config.task_file:
         # Fallback to default evaluator with evolve block example
         evaluator_obj, initial_code = examples.logistic_function_evolve_block_task()
+        # The evaluator from examples returns (evaluator_obj, initial_code)
+        # We need to use the evaluator_obj.evaluate method
         evaluator = evaluator_obj.evaluate
     else:
         # Use default example task without evolve blocks
         evaluator_obj, initial_code = examples.composite_function_no_block_task()
+        # The evaluator from examples returns (evaluator_obj, initial_code)
+        # We need to use the evaluator_obj.evaluate method
         evaluator = evaluator_obj.evaluate
 
     # Initialize database
@@ -112,6 +147,8 @@ def main():
 
     # Seed population
     logger.info("Seeding initial population...")
+    # The evaluator is a function that takes code and returns fitness
+    # For seeding, we need to execute the code first
     initial_fitness = evaluator(initial_code)
     database.seed(initial_code, initial_fitness)
     logger.info(f"Seeded with fitness: {initial_fitness:.4f}")
