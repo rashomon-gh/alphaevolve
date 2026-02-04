@@ -16,6 +16,37 @@ from alphaevolve import examples
 from alphaevolve.cli import create_cli_args
 
 
+def _extract_sample_data(task_file: str) -> dict:
+    """
+    Extract sample data from a task file by executing load_data().
+
+    Args:
+        task_file: Path to the task file
+
+    Returns:
+        Dictionary with 'inputs' and 'outputs' keys
+    """
+    try:
+        from pathlib import Path
+
+        code = Path(task_file).read_text()
+        namespace = {}
+        exec(code, namespace, namespace)
+
+        if "load_data" not in namespace:
+            return {}
+
+        X, y = namespace["load_data"]()
+        return {
+            "inputs": X.tolist() if hasattr(X, "tolist") else list(X),
+            "outputs": y.tolist() if hasattr(y, "tolist") else list(y),
+        }
+
+    except Exception as e:
+        logger.warning(f"Failed to extract sample data: {e}")
+        return {}
+
+
 def main():
     """Main entry point for AlphaEvolve."""
     args = create_cli_args()
@@ -63,6 +94,7 @@ def main():
 
     # Determine task and log it
     task_spec = None
+    task_loader = None
     if config.use_evolve_blocks and config.task_file:
         task_loader = TaskLoader(config.task_file)
         task_spec = task_loader.parse()
@@ -91,7 +123,7 @@ def main():
         # 2. Reconstruct the full code by replacing EVOLVE-BLOCK
         # 3. Execute the code
         # 4. Call the evaluate function
-        task_loader_obj = TaskLoader(str(config.task_file))
+        task_loader_obj = task_loader
 
         def make_evaluator_wrapper(loader):
             def wrapper(code: str) -> float:
@@ -145,6 +177,26 @@ def main():
         num_islands=config.num_islands,
     )
 
+    # Extract skeleton code and sample data for prompts
+    skeleton_code = ""
+    sample_data = {}
+
+    if config.use_evolve_blocks and config.task_file and task_spec:
+        # Use original_code (includes EVOLVE-BLOCK markers) for prediction reconstruction
+        # Use skeleton_code for showing helper functions in prompts
+        # We pass both to the SearchAgent
+        skeleton_code = task_spec.original_code
+        # Extract sample data by running load_data() from the task file
+        sample_data = _extract_sample_data(config.task_file)
+
+    # Seed population
+    logger.info("Seeding initial population...")
+    # The evaluator is a function that takes code and returns fitness
+    # For seeding, we need to execute the code first
+    initial_fitness = evaluator(initial_code)
+    database.seed(initial_code, initial_fitness)
+    logger.info(f"Seeded with fitness: {initial_fitness:.4f}")
+
     # Seed population
     logger.info("Seeding initial population...")
     # The evaluator is a function that takes code and returns fitness
@@ -170,6 +222,8 @@ def main():
         task_description=config.task_description,
         parallel_slots=config.parallel_slots,
         use_cascade=config.use_cascade,
+        skeleton_code=skeleton_code,
+        sample_data=sample_data,
     )
 
     # Run evolutionary search

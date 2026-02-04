@@ -8,7 +8,7 @@ Responsibilities:
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, Optional
 from alphaevolve.database import Database
 from alphaevolve.llm_client import LLMClient, LLMConfig
 from alphaevolve.mutation_agent import MutationAgent
@@ -32,6 +32,8 @@ class Orchestrator:
         task_description: str = "",
         parallel_slots: int = 50,
         use_cascade: bool = True,
+        skeleton_code: str = "",
+        sample_data: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize Orchestrator.
@@ -43,6 +45,8 @@ class Orchestrator:
             task_description: Description of the optimization task
             parallel_slots: Maximum parallel Search Agents
             use_cascade: Whether to use cascaded evaluation
+            skeleton_code: Full skeleton code including helper functions
+            sample_data: Sample inputs and expected outputs for the task
         """
         self.config = config
         self.database = database
@@ -50,6 +54,8 @@ class Orchestrator:
         self.task_description = task_description
         self.parallel_slots = parallel_slots
         self.use_cascade = use_cascade
+        self.skeleton_code = skeleton_code
+        self.sample_data = sample_data or {}
 
         # Initialize LLM client (shared by all mutation agents)
         self.llm_client = LLMClient(config)
@@ -178,6 +184,8 @@ class Orchestrator:
                 scoring_agent=scoring_agent,
                 task_description=self.task_description,
                 use_diff=self.config.use_diff,
+                skeleton_code=self.skeleton_code,
+                sample_data=self.sample_data,
             )
             agents.append((search_agent, offspring_per_agent[i]))
 

@@ -1,23 +1,26 @@
+"""
+My custom optimization task.
+"""
+
 import numpy as np
 
 
 # Static helper functions (not evolved)
 def load_data():
-    np.random.seed(123)
-
-    X = np.linspace(0, 8, 25)
-    y = X**2 * np.sin(X) + 2 * np.cos(X / 2)
-
+    """Load training data."""
+    X = np.array([1, 2, 3, 4, 5])
+    y = np.array([2, 4, 6, 8, 10])
     return X, y
 
 
 # EVOLVE-BLOCK-START
 def solve(x):
     """
-    Rewrite the function to solve the problem by fitting the data
+    Transform input x to produce the correct output.
+    This function will be evolved by AlphaEvolve.
     """
     # Initial implementation - needs improvement
-    return x * x
+    return x * 2
 
 
 # EVOLVE-BLOCK-END
