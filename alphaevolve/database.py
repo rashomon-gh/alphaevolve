@@ -13,6 +13,7 @@ from enum import Enum
 
 class SelectionStrategy(Enum):
     """Selection strategies for parent selection."""
+
     ELITISM = "elitism"
     TOURNAMENT = "tournament"
     MAP_ELITES = "map_elites"
@@ -22,6 +23,7 @@ class SelectionStrategy(Enum):
 @dataclass
 class Program:
     """Represents a candidate solution."""
+
     code: str
     fitness: float = -float("inf")
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -71,7 +73,13 @@ class Database:
         self.generation = 0
         self._next_id = 0
 
-    def add_program(self, code: str, fitness: float, metadata: Optional[Dict[str, Any]] = None, parent_id: Optional[int] = None) -> int:
+    def add_program(
+        self,
+        code: str,
+        fitness: float,
+        metadata: Optional[Dict[str, Any]] = None,
+        parent_id: Optional[int] = None,
+    ) -> int:
         """
         Add a program to the database.
 
@@ -107,7 +115,7 @@ class Database:
         # Prune archive if too large
         if len(self.archive) > self.archive_size:
             self.archive.sort(key=lambda p: p.fitness, reverse=True)
-            self.archive = self.archive[:self.archive_size]
+            self.archive = self.archive[: self.archive_size]
 
         return program.id
 
@@ -191,7 +199,11 @@ class Database:
             island_gens = []
             for i in range(self.num_islands):
                 start = i * island_size
-                end = start + island_size if i < self.num_islands - 1 else len(generations)
+                end = (
+                    start + island_size
+                    if i < self.num_islands - 1
+                    else len(generations)
+                )
                 mid = (start + end - 1) // 2
                 island_gens.append(generations[mid])
 
@@ -272,11 +284,11 @@ class Database:
                 selected.append(bucket[0])
                 if len(selected) >= self.population_size:
                     break
-            self.population = selected[:self.population_size]
+            self.population = selected[: self.population_size]
         else:
             # Keep best programs
             self.population.sort(key=lambda p: p.fitness, reverse=True)
-            self.population = self.population[:self.population_size]
+            self.population = self.population[: self.population_size]
 
     def advance_generation(self) -> None:
         """Advance to the next generation."""

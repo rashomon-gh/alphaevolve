@@ -39,7 +39,9 @@ def main():
         archive_size=args.archive_size if hasattr(args, "archive_size") else 1000,
         num_islands=args.num_islands if hasattr(args, "num_islands") else 3,
         use_cascade=args.use_cascaded_evaluation,
-        fast_eval_ratio=args.fast_eval_ratio if hasattr(args, "fast_eval_ratio") else 0.3,
+        fast_eval_ratio=args.fast_eval_ratio
+        if hasattr(args, "fast_eval_ratio")
+        else 0.3,
         task_file=args.task_file,
         use_evolve_blocks=args.use_evolve_blocks,
         task_description="",

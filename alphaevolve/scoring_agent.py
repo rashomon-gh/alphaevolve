@@ -14,6 +14,7 @@ from dataclasses import dataclass
 @dataclass
 class ScoreResult:
     """Result of scoring a program."""
+
     fitness: float
     metrics: Dict[str, Any]
     passed_stage: int

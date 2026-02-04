@@ -7,10 +7,9 @@ Responsibilities:
 - Coordinate evolutionary search
 """
 
-import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, Any
-from alphaevolve.database import Database, SelectionStrategy
+from alphaevolve.database import Database
 from alphaevolve.llm_client import LLMClient, LLMConfig
 from alphaevolve.mutation_agent import MutationAgent
 from alphaevolve.scoring_agent import ScoringAgent
@@ -166,7 +165,9 @@ class Orchestrator:
         # Create agents
         agents = []
         for i in range(num_agents):
-            mutation_agent = MutationAgent(self.llm_client, use_diff=self.config.use_diff)
+            mutation_agent = MutationAgent(
+                self.llm_client, use_diff=self.config.use_diff
+            )
             scoring_agent = ScoringAgent(
                 self.evaluator,
                 use_cascade=self.use_cascade,

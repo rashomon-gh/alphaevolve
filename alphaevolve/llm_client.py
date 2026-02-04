@@ -6,7 +6,7 @@ Handles LLM querying and Search/Replace diff format.
 
 import re
 import torch
-from typing import Optional, Tuple
+from typing import Tuple
 from dataclasses import dataclass
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from alphaevolve.secrets import values
@@ -15,6 +15,7 @@ from alphaevolve.secrets import values
 @dataclass
 class LLMConfig:
     """Configuration for LLM client."""
+
     model_id: str
     max_tokens: int = 512
     temperature: float = 0.7
@@ -112,7 +113,7 @@ class LLMClient:
             config.model_id,
             torch_dtype=torch.float16,
             token=values.huggingface_token.get_secret_value(),
-        ).to(self.device)
+        ).to(self.device)  # type: ignore
 
         # Set pad token if not set
         if self.tokenizer.pad_token is None:

@@ -8,9 +8,7 @@ Responsibilities:
 - Syntax Check
 """
 
-import ast
-from typing import Optional
-from alphaevolve.llm_client import LLMClient, DiffParser
+from alphaevolve.llm_client import LLMClient
 from alphaevolve.program_validator import ProgramValidator
 
 
@@ -75,7 +73,9 @@ class MutationAgent:
                     # Retry with error feedback
                     prompt = f"{prompt}\n\nPrevious attempt failed with error: {e}\nPlease try again."
 
-        raise RuntimeError(f"Failed to generate valid code after {max_retries} attempts")
+        raise RuntimeError(
+            f"Failed to generate valid code after {max_retries} attempts"
+        )
 
     @staticmethod
     def _extract_code(llm_response: str) -> str:
