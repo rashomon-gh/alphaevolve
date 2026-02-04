@@ -1,50 +1,46 @@
+"""
+Configuration for AlphaEvolve Agentic Architecture.
+
+Simplified configuration for the new agentic system.
+"""
+
 from dataclasses import dataclass
 from typing import Optional
-from alphaevolve.program_database import SelectionStrategy
-from alphaevolve.prompt_sampler import PromptStyle
+from alphaevolve.database import SelectionStrategy
 
 
 @dataclass
-class SearchConfig:
-    # model to be loaded from huggingface
+class Config:
+    """
+    Configuration for AlphaEvolve.
+
+    Simplified configuration for the agentic architecture.
+    """
+
+    # LLM settings
     model_id: str
-    # number of candidates
-    population_size: int
-    # generations
-    num_generations: int
-    # how many best programs to add to the LLM context for generation
-    # in paper terms, inspiration to the LLM
-    num_parent_context: int
-    # early stopping: stop if fitness doesn't improve after this many generations
+    max_tokens: int = 512
+    temperature: float = 0.7
+    top_p: float = 0.9
+    use_diff: bool = False
+
+    # Search settings
+    population_size: int = 5
+    num_generations: int = 50
+    parallel_slots: int = 50  # Max parallel Search Agents
     early_stopping_threshold: int = 5
 
-    # Program Database settings
+    # Database settings
     selection_strategy: SelectionStrategy = SelectionStrategy.MAP_ELITES
     diversity_weight: float = 0.3
     archive_size: int = 1000
-    num_islands: int = 3  # Number of islands for island model selection
+    num_islands: int = 3
 
-    # Prompt Sampler settings
-    prompt_style: PromptStyle = PromptStyle.STANDARD
-    use_dynamic_formatting: bool = True
-    num_context_programs: int = 3
-    include_evaluation_feedback: bool = True
-
-    # LLM Ensemble settings
-    use_ensemble: bool = False
-    strong_model_id: Optional[str] = None
-    use_diff_format: bool = False
-
-    # Evaluation Engine settings
-    use_cascaded_evaluation: bool = False
+    # Evaluation settings
+    use_cascade: bool = True
     fast_eval_ratio: float = 0.3
-    use_parallel_evaluation: bool = False
-    max_workers: int = 4
-
-    # Async Controller settings (DEFAULT: True)
-    use_async: bool = True  # Enable async distributed controller by default
-    async_queue_size: int = 100  # Queue size for async workers
 
     # Task settings
     task_file: Optional[str] = None
     use_evolve_blocks: bool = False
+    task_description: str = ""

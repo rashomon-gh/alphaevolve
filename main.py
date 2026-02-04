@@ -1,114 +1,151 @@
 """
 AlphaEvolve: LLM-Guided Evolutionary Coding Agent
 
-This script demonstrates AlphaEvolve capabilities with an example optimization task.
+This script demonstrates AlphaEvolve capabilities with the new agentic architecture.
 """
 
-import asyncio
 from loguru import logger
 
-from alphaevolve.agent import AlphaEvolveAgent
-from alphaevolve.config import SearchConfig
-from alphaevolve.cli import create_cli_args
+from alphaevolve.config import Config
+from alphaevolve.database import Database, SelectionStrategy
+from alphaevolve.llm_client import LLMConfig
+from alphaevolve.orchestrator import Orchestrator
 from alphaevolve.task_loader import TaskLoader
 from alphaevolve.utils import write_solution_to_file
 from alphaevolve import examples
+from alphaevolve.cli import create_cli_args
 
 
-async def run_async_main(args, search_config):
-    """
-    Run AlphaEvolve with async controller.
+def main():
+    """Main entry point for AlphaEvolve."""
+    args = create_cli_args()
 
-    Args:
-        args: Command-line arguments
-        search_config: Search configuration
-    """
+    # Map string arguments to enums
+    selection_strategy = SelectionStrategy(args.selection_strategy)
 
+    # Create configuration
+    config = Config(
+        model_id=args.model_id,
+        max_tokens=args.max_tokens if hasattr(args, "max_tokens") else 512,
+        temperature=args.temperature if hasattr(args, "temperature") else 0.7,
+        top_p=args.top_p if hasattr(args, "top_p") else 0.9,
+        use_diff=args.use_diff_format,
+        population_size=args.population_size,
+        num_generations=args.num_generations,
+        parallel_slots=args.parallel_slots if hasattr(args, "parallel_slots") else 50,
+        early_stopping_threshold=args.early_stopping_threshold,
+        selection_strategy=selection_strategy,
+        diversity_weight=args.diversity_weight,
+        archive_size=args.archive_size if hasattr(args, "archive_size") else 1000,
+        num_islands=args.num_islands if hasattr(args, "num_islands") else 3,
+        use_cascade=args.use_cascaded_evaluation,
+        fast_eval_ratio=args.fast_eval_ratio if hasattr(args, "fast_eval_ratio") else 0.3,
+        task_file=args.task_file,
+        use_evolve_blocks=args.use_evolve_blocks,
+        task_description="",
+    )
+
+    # Print configuration
     logger.info("=" * 70)
-    logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent (Async Mode)")
+    logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent (Agentic Mode)")
     logger.info("=" * 70)
     logger.info("Configuration:")
-    logger.info(f"  Model ID: {search_config.model_id}")
-    logger.info(f"  Population size: {search_config.population_size}")
-    logger.info(f"  Generations: {search_config.num_generations}")
-    logger.info(f"  Selection strategy: {search_config.selection_strategy.value}")
-    logger.info(f"  Prompt style: {search_config.prompt_style.value}")
-    logger.info(f"  Use ensemble: {search_config.use_ensemble}")
-    logger.info(f"  Use diff format: {search_config.use_diff_format}")
-    logger.info(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
-    logger.info(f"  Max workers: {search_config.max_workers}")
-    logger.info("  ASYNC MODE: ENABLED")
-    
+    logger.info(f"  Model ID: {config.model_id}")
+    logger.info(f"  Population size: {config.population_size}")
+    logger.info(f"  Generations: {config.num_generations}")
+    logger.info(f"  Parallel slots: {config.parallel_slots}")
+    logger.info(f"  Selection strategy: {config.selection_strategy.value}")
+    logger.info(f"  Use diff format: {config.use_diff}")
+    logger.info(f"  Use cascaded evaluation: {config.use_cascade}")
+    logger.info("=" * 70)
+
     # Determine task and log it
     task_spec = None
-    if search_config.use_evolve_blocks and search_config.task_file:
-        task_loader = TaskLoader(search_config.task_file)
+    if config.use_evolve_blocks and config.task_file:
+        task_loader = TaskLoader(config.task_file)
         task_spec = task_loader.parse()
         if task_spec.evaluate_function:
-            task_name = f"User-provided task: {search_config.task_file}"
-            logger.info(f"  Task file: {search_config.task_file}")
+            task_name = f"User-provided task: {config.task_file}"
+            logger.info(f"  Task file: {config.task_file}")
             logger.info(f"  Task: {task_name}")
         else:
             task_name = "Logistic function approximation (with EVOLVE-BLOCK markers)"
-            logger.info(f"  Task file: {search_config.task_file}")
+            logger.info(f"  Task file: {config.task_file}")
             logger.info(f"  Task: {task_name}")
     else:
         task_name = "Composite function approximation (without EVOLVE-BLOCK markers)"
         logger.info(f"  Task: {task_name}")
-    
-    if search_config.use_evolve_blocks:
-        logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
-    logger.info("=" * 70)
 
-    # Initialize agent
-    agent = AlphaEvolveAgent(search_config)
+    if config.use_evolve_blocks:
+        logger.info(f"  Using EVOLVE-BLOCK markers: {config.use_evolve_blocks}")
+    logger.info("=" * 70)
 
     # Set evaluator and task
     if task_spec and task_spec.evaluate_function:
         # Use user-provided evaluate function
-        agent.set_evaluator(task_spec.evaluate_function)
+        evaluator = task_spec.evaluate_function
         initial_code = (
             task_spec.evolve_blocks[0]
             if task_spec.evolve_blocks
             else task_spec.original_code
         )
-        task_description = "Rewrite the code within EVOLVE-BLOCK markers to correctly fit the target data."
-    elif search_config.use_evolve_blocks and search_config.task_file:
+        config.task_description = "Rewrite the code within EVOLVE-BLOCK markers to correctly fit the target data."
+    elif config.use_evolve_blocks and config.task_file:
         # Fallback to default evaluator with evolve block example
-        evaluator, initial_code = examples.logistic_function_evolve_block_task()
-        agent.set_evaluator(evaluator)
-        task_description = ""
+        evaluator_obj, initial_code = examples.logistic_function_evolve_block_task()
+        evaluator = evaluator_obj.evaluate
     else:
         # Use default example task without evolve blocks
-        evaluator, initial_code = examples.composite_function_no_block_task()
-        agent.set_evaluator(evaluator)
-        task_description = ""
+        evaluator_obj, initial_code = examples.composite_function_no_block_task()
+        evaluator = evaluator_obj.evaluate
+
+    # Initialize database
+    database = Database(
+        population_size=config.population_size,
+        selection_strategy=config.selection_strategy,
+        diversity_weight=config.diversity_weight,
+        archive_size=config.archive_size,
+        num_islands=config.num_islands,
+    )
 
     # Seed population
     logger.info("Seeding initial population...")
-    agent.seed_population(initial_code)
+    initial_fitness = evaluator(initial_code)
+    database.seed(initial_code, initial_fitness)
+    logger.info(f"Seeded with fitness: {initial_fitness:.4f}")
 
-    # Initialize async controller
-    logger.info("Initializing async controller...")
-    agent.initialize_async_controller(
-        evaluator=agent.evaluator,
-        task_description=task_description,
+    # Create LLM config
+    llm_config = LLMConfig(
+        model_id=config.model_id,
+        max_tokens=config.max_tokens,
+        temperature=config.temperature,
+        top_p=config.top_p,
+        use_diff=config.use_diff,
     )
 
-    # Run async evolutionary search
-    logger.info(
-        f"Starting async evolutionary search for {search_config.num_generations} generations..."
+    # Initialize orchestrator
+    orchestrator = Orchestrator(
+        config=llm_config,
+        database=database,
+        evaluator=evaluator,
+        task_description=config.task_description,
+        parallel_slots=config.parallel_slots,
+        use_cascade=config.use_cascade,
     )
-    logger.info("-" * 70)
 
-    stats = await agent.run_async_search(search_config.num_generations)
+    # Run evolutionary search
+    stats = orchestrator.run(
+        num_generations=config.num_generations,
+        population_size=config.population_size,
+        early_stopping_threshold=config.early_stopping_threshold,
+    )
 
     # Print final results
     logger.info("\n" + "=" * 70)
     logger.info("EVOLUTIONARY SEARCH COMPLETE")
     logger.info("=" * 70)
 
-    best_program = agent.get_best_program()
+    best_program = orchestrator.get_best_program()
     if best_program:
         logger.info(f"Best fitness achieved: {best_program.fitness:.4f}")
         logger.info(f"Found at generation: {best_program.generation}")
@@ -131,178 +168,16 @@ async def run_async_main(args, search_config):
         logger.info("\nSearch Statistics:")
         logger.info(f"  Total generated: {stats['total_generated']}")
         logger.info(f"  Total evaluated: {stats['total_evaluated']}")
-        logger.info(f"  Total time: {stats['total_time']:.2f}s")
-        logger.info(f"  Avg generation time: {stats['avg_generation_time']:.2f}s")
-        logger.info(f"  Avg evaluation time: {stats['avg_evaluation_time']:.2f}s")
-        logger.info(f"  Throughput: {stats['throughput']:.2f} programs/s")
+        logger.info(f"  Generations run: {stats['generations_run']}")
+        logger.info(f"  Best fitness: {stats['best_fitness']:.4f}")
 
         # Print population statistics
-        pop_stats = agent.get_population_stats()
+        db_stats = orchestrator.get_database_stats()
         logger.info("\nFinal Population Statistics:")
-        logger.info(f"  Population size: {pop_stats['population_size']}")
-        logger.info(f"  Archive size: {pop_stats['archive_size']}")
-        logger.info(f"  Mean fitness: {pop_stats['mean_fitness']:.4f}")
-        logger.info(f"  Std fitness: {pop_stats['std_fitness']:.4f}")
-    else:
-        logger.warning("No valid solution found!")
-
-    return stats
-
-
-def main():
-    """Main entry point for AlphaEvolve."""
-    args = create_cli_args()
-
-    # Map string arguments to enums
-    from alphaevolve.program_database import SelectionStrategy
-    from alphaevolve.prompt_sampler import PromptStyle
-
-    # Create configuration
-    search_config = SearchConfig(
-        model_id=args.model_id,
-        population_size=args.population_size,
-        num_generations=args.num_generations,
-        num_parent_context=args.num_parent_context,
-        early_stopping_threshold=args.early_stopping_threshold,
-        selection_strategy=SelectionStrategy(args.selection_strategy),
-        diversity_weight=args.diversity_weight,
-        prompt_style=PromptStyle(args.prompt_style),
-        use_dynamic_formatting=not args.no_dynamic_formatting,
-        use_ensemble=args.use_ensemble,
-        strong_model_id=args.strong_model_id,
-        use_diff_format=args.use_diff_format,
-        use_cascaded_evaluation=args.use_cascaded_evaluation,
-        use_parallel_evaluation=args.use_parallel_evaluation,
-        max_workers=args.max_workers,
-        task_file=args.task_file,
-        use_evolve_blocks=args.use_evolve_blocks,
-        use_async=not args.use_sync,  # Async is default, use_sync overrides to False
-        async_queue_size=args.async_queue_size
-        if hasattr(args, "async_queue_size")
-        else 100,
-    )
-
-    # Choose execution mode (async is default)
-    if not args.use_sync:
-        # Run async mode (default)
-        asyncio.run(run_async_main(args, search_config))
-    else:
-        # Run sync mode (explicitly requested)
-        run_sync_main(args, search_config)
-
-
-def run_sync_main(args, search_config):
-    """
-    Run AlphaEvolve in synchronous mode (original implementation).
-
-    Args:
-        args: Command-line arguments
-        search_config: Search configuration
-    """
-
-    # Print configuration
-    logger.info("=" * 70)
-    logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent")
-    logger.info("=" * 70)
-    logger.info("Configuration:")
-    logger.info(f"  Model ID: {search_config.model_id}")
-    logger.info(f"  Population size: {search_config.population_size}")
-    logger.info(f"  Generations: {search_config.num_generations}")
-    logger.info(f"  Selection strategy: {search_config.selection_strategy.value}")
-    logger.info(f"  Prompt style: {search_config.prompt_style.value}")
-    logger.info(f"  Use ensemble: {search_config.use_ensemble}")
-    logger.info(f"  Use diff format: {search_config.use_diff_format}")
-    logger.info(f"  Use cascaded evaluation: {search_config.use_cascaded_evaluation}")
-    logger.info(f"  Use parallel evaluation: {search_config.use_parallel_evaluation}")
-    
-    # Determine task and log it
-    task_spec = None
-    if search_config.use_evolve_blocks and search_config.task_file:
-        task_loader = TaskLoader(search_config.task_file)
-        task_spec = task_loader.parse()
-        if task_spec.evaluate_function:
-            task_name = f"User-provided task: {search_config.task_file}"
-            logger.info(f"  Task file: {search_config.task_file}")
-            logger.info(f"  Task: {task_name}")
-        else:
-            task_name = "Logistic function approximation (with EVOLVE-BLOCK markers)"
-            logger.info(f"  Task file: {search_config.task_file}")
-            logger.info(f"  Task: {task_name}")
-    else:
-        task_name = "Composite function approximation (without EVOLVE-BLOCK markers)"
-        logger.info(f"  Task: {task_name}")
-    
-    if search_config.use_evolve_blocks:
-        logger.info(f"  Using EVOLVE-BLOCK markers: {search_config.use_evolve_blocks}")
-    logger.info("=" * 70)
-
-    # Initialize agent
-    agent = AlphaEvolveAgent(search_config)
-
-    # Set evaluator
-    if task_spec and task_spec.evaluate_function:
-        # Use user-provided evaluate function
-        agent.set_evaluator(task_spec.evaluate_function)
-        initial_code = (
-            task_spec.evolve_blocks[0]
-            if task_spec.evolve_blocks
-            else task_spec.original_code
-        )
-    elif search_config.use_evolve_blocks and search_config.task_file:
-        # Fallback to default evaluator with evolve block example
-        evaluator, initial_code = examples.logistic_function_evolve_block_task()
-        agent.set_evaluator(evaluator)
-    else:
-        # Use default example task without evolve blocks
-        evaluator, initial_code = examples.composite_function_no_block_task()
-        agent.set_evaluator(evaluator)
-
-    # Seed population
-    logger.info("Seeding initial population...")
-    agent.seed_population(initial_code)
-
-    # Run evolutionary search
-    logger.info(
-        f"Starting evolutionary search for {search_config.num_generations} generations..."
-    )
-    logger.info("-" * 70)
-
-    for gen in range(1, search_config.num_generations + 1):
-        should_continue = agent.step(gen)
-        if not should_continue:
-            break
-
-    # Print final results
-    logger.info("\n" + "=" * 70)
-    logger.info("EVOLUTIONARY SEARCH COMPLETE")
-    logger.info("=" * 70)
-
-    best_program = agent.get_best_program()
-    if best_program:
-        logger.info(f"Best fitness achieved: {best_program.fitness:.4f}")
-        logger.info(f"Found at generation: {best_program.generation}")
-
-        logger.info("\n" + "-" * 70)
-        logger.info("Best Solution:")
-        logger.info("-" * 70)
-        logger.info(best_program.code)
-        logger.info("-" * 70)
-
-        # Export solution
-        output_file = f"solution_gen_{best_program.generation}.py"
-        try:
-            write_solution_to_file(best_program.code, output_file)
-            logger.success(f"Solution exported to: {output_file}")
-        except IOError as e:
-            logger.error(f"Failed to export solution: {e}")
-
-        # Print population statistics
-        stats = agent.get_population_stats()
-        logger.info("\nFinal Population Statistics:")
-        logger.info(f"  Population size: {stats['population_size']}")
-        logger.info(f"  Archive size: {stats['archive_size']}")
-        logger.info(f"  Mean fitness: {stats['mean_fitness']:.4f}")
-        logger.info(f"  Std fitness: {stats['std_fitness']:.4f}")
+        logger.info(f"  Population size: {db_stats['population_size']}")
+        logger.info(f"  Archive size: {db_stats['archive_size']}")
+        logger.info(f"  Mean fitness: {db_stats['mean_fitness']:.4f}")
+        logger.info(f"  Std fitness: {db_stats['std_fitness']:.4f}")
     else:
         logger.warning("No valid solution found!")
 

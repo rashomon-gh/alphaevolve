@@ -1,7 +1,7 @@
 [project]
 name = "alphaevolve"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.3.0"
+description = "Agentic LLM-Guided Evolutionary Coding Agent"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
     "jupyterlab>=4.5.1",
     "loguru>=0.7.3",
     "matplotlib>=3.10.8",
+    "numpy>=2.0.0",
     "pandas>=2.3.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
