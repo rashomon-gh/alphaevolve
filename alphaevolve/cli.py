@@ -10,8 +10,8 @@ def create_cli_args():
     parser.add_argument(
         "--model-id",
         type=str,
-        default="google/gemma-2b-it",
-        help="HuggingFace model ID to use (default: google/gemma-2b-it)",
+        default="google/gemma-3-12b-it",
+        help="HuggingFace model ID to use (default: google/gemma-3-12b-it)",
     )
     parser.add_argument(
         "--population-size",
@@ -69,8 +69,8 @@ def create_cli_args():
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=512,
-        help="Maximum tokens to generate (default: 512)",
+        default=2048,
+        help="Maximum tokens to generate (default: 2048)",
     )
     parser.add_argument(
         "--temperature",
