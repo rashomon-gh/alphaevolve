@@ -1,7 +1,7 @@
 [project]
 name = "alphaevolve"
 version = "0.3.0"
-description = "Agentic LLM-Guided Evolutionary Coding Agent"
+description = "LLM-Guided Evolutionary Coding Agent"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
