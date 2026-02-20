@@ -1,19 +1,13 @@
-"""
-AlphaEvolve: LLM-Guided Evolutionary Coding Agent
-
-This script demonstrates AlphaEvolve capabilities with the new agentic architecture.
-"""
-
 from loguru import logger
 
-from alphaevolve.config import Config
-from alphaevolve.database import Database, SelectionStrategy
-from alphaevolve.llm_client import LLMConfig
-from alphaevolve.orchestrator import Orchestrator
-from alphaevolve.task_loader import TaskLoader
-from alphaevolve.utils import write_solution_to_file
-from alphaevolve import examples
-from alphaevolve.cli import create_cli_args
+from prog_search.config import Config
+from prog_search.database import Database, SelectionStrategy
+from prog_search.llm_client import LLMConfig
+from prog_search.orchestrator import Orchestrator
+from prog_search.task_loader import TaskLoader
+from prog_search.utils import write_solution_to_file
+from prog_search import examples
+from prog_search.cli import create_cli_args
 
 
 def _extract_sample_data(task_file: str) -> dict:
@@ -48,7 +42,7 @@ def _extract_sample_data(task_file: str) -> dict:
 
 
 def main():
-    """Main entry point for AlphaEvolve."""
+    """Main entry point for prog_search."""
     args = create_cli_args()
 
     # Map string arguments to enums
@@ -80,7 +74,7 @@ def main():
 
     # Print configuration
     logger.info("=" * 70)
-    logger.info("AlphaEvolve: LLM-Guided Evolutionary Coding Agent (Agentic Mode)")
+    logger.info("prog_search: LLM-Guided Evolutionary Coding Agent (Agentic Mode)")
     logger.info("=" * 70)
     logger.info("Configuration:")
     logger.info(f"  Model ID: {config.model_id}")
