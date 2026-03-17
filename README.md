@@ -77,6 +77,34 @@ Create a task file with evolvable code blocks (see `example_task.py`):
 uv run main.py --task-file example_task.py --use-evolve-blocks
 ```
 
+### Running Example Tasks with Ollama/VLLM
+
+Run any example task from `examples/` with an OpenAI-compatible backend:
+
+**Numerical task (Ollama):**
+```bash
+uv run main.py \
+  --backend openai \
+  --base-url http://localhost:11434/v1 \
+  --model-id gemma3 \
+  --task-file examples/example_simple.py \
+  --use-evolve-blocks \
+  --num-generations 20 \
+  --population-size 10
+```
+
+**Symbolic task (VLLM):**
+```bash
+uv run main.py \
+  --backend openai \
+  --base-url http://localhost:8000/v1 \
+  --model-id meta-llama/Llama-3-8b \
+  --task-file examples/example_symbolic_identity.py \
+  --use-evolve-blocks \
+  --num-generations 30 \
+  --population-size 15
+```
+
 ### Custom Configuration
 
 ```bash
