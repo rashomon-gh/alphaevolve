@@ -51,10 +51,13 @@ def main():
     # Create configuration
     config = Config(
         model_id=args.model_id,
+        backend=args.backend,
         max_tokens=args.max_tokens if hasattr(args, "max_tokens") else 512,
         temperature=args.temperature if hasattr(args, "temperature") else 0.7,
         top_p=args.top_p if hasattr(args, "top_p") else 0.9,
         use_diff=args.use_diff_format,
+        base_url=args.base_url if hasattr(args, "base_url") else None,
+        api_key=args.api_key if hasattr(args, "api_key") else None,
         population_size=args.population_size,
         num_generations=args.num_generations,
         parallel_slots=args.parallel_slots if hasattr(args, "parallel_slots") else 50,
@@ -77,7 +80,10 @@ def main():
     logger.info("prog_search: LLM-Guided Evolutionary Coding Agent (Agentic Mode)")
     logger.info("=" * 70)
     logger.info("Configuration:")
+    logger.info(f"  Backend: {config.backend.value}")
     logger.info(f"  Model ID: {config.model_id}")
+    if config.backend.value == "openai" and config.base_url:
+        logger.info(f"  Base URL: {config.base_url}")
     logger.info(f"  Population size: {config.population_size}")
     logger.info(f"  Generations: {config.num_generations}")
     logger.info(f"  Parallel slots: {config.parallel_slots}")
@@ -202,10 +208,13 @@ def main():
     # Create LLM config
     llm_config = LLMConfig(
         model_id=config.model_id,
+        backend=config.backend,
         max_tokens=config.max_tokens,
         temperature=config.temperature,
         top_p=config.top_p,
         use_diff=config.use_diff,
+        base_url=config.base_url,
+        api_key=config.api_key,
     )
 
     # Initialize orchestrator
