@@ -7,6 +7,7 @@ Simplified configuration for the new agentic system.
 from dataclasses import dataclass
 from typing import Optional
 from alphaevolve.database import SelectionStrategy
+from alphaevolve.llm_client import BackendType
 
 
 @dataclass
@@ -19,10 +20,13 @@ class Config:
 
     # LLM settings
     model_id: str
+    backend: BackendType = BackendType.HUGGINGFACE
     max_tokens: int = 512
     temperature: float = 0.7
     top_p: float = 0.9
     use_diff: bool = False
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
 
     # Search settings
     population_size: int = 5

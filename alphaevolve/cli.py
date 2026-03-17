@@ -1,17 +1,40 @@
 import argparse
 
+from alphaevolve.llm_client import BackendType
+
 
 def create_cli_args():
     parser = argparse.ArgumentParser(
         description="AlphaEvolve: Evolutionary search for program synthesis using LLMs (Agentic Mode)"
     )
 
-    # Basic arguments
+    # Backend arguments
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["huggingface", "openai"],
+        default="huggingface",
+        help="LLM backend to use: huggingface (local) or openai (Ollama/VLLM/OpenAI) (default: huggingface)",
+    )
+    parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="Base URL for OpenAI-compatible API (e.g., http://localhost:11434/v1 for Ollama)",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="API key for OpenAI-compatible API (optional for local servers like Ollama)",
+    )
+
+    # Model arguments
     parser.add_argument(
         "--model-id",
         type=str,
         default="google/gemma-2b-it",
-        help="HuggingFace model ID to use (default: google/gemma-2b-it)",
+        help="Model ID to use (HuggingFace model ID or OpenAI model name) (default: google/gemma-2b-it)",
     )
     parser.add_argument(
         "--population-size",
@@ -117,5 +140,7 @@ def create_cli_args():
     )
 
     args = parser.parse_args()
+
+    args.backend = BackendType(args.backend)
 
     return args
