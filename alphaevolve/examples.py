@@ -7,8 +7,13 @@ to demonstrate AlphaEvolve's capabilities.
 
 import numpy as np
 from typing import Tuple
+from sympy import symbols, sin, cos, exp, log, sqrt, pi, E
 
-from alphaevolve.search import NumericalEvaluator
+from alphaevolve.search import (
+    NumericalEvaluator,
+    SymbolicEvaluator,
+    SymbolicRegressionEvaluator,
+)
 
 
 def logistic_function_evolve_block_task() -> Tuple[NumericalEvaluator, str]:
@@ -204,9 +209,263 @@ def solve(x):
     return evaluator, initial_code
 
 
+def symbolic_simplification_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a symbolic simplification task.
+
+    The task is to find an expression equivalent to the target:
+    (x + 1)^2 = x^2 + 2x + 1
+
+    The initial guess is the expanded form, which is correct but not simplified.
+    """
+    x = symbols("x")
+    target = (x + 1) ** 2
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x},
+        complexity_weight=0.05,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols, expand
+
+def solve(x):
+    # Initial: expanded form - correct but verbose
+    return x**2 + 2*x + 1
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_trig_identity_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a trigonometric identity discovery task.
+
+    The task is to discover the identity:
+    sin(x)^2 + cos(x)^2 = 1
+
+    The initial guess is an incorrect expression.
+    """
+    x = symbols("x")
+    target = 1
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x},
+        complexity_weight=0.1,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols, sin, cos
+
+def solve(x):
+    # Initial: incorrect guess
+    return sin(x) + cos(x)
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_derivative_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a symbolic derivative discovery task.
+
+    The task is to find the derivative of x^3 * sin(x):
+    d/dx(x^3 * sin(x)) = 3*x^2*sin(x) + x^3*cos(x)
+
+    The initial guess is a simple approximation.
+    """
+    x = symbols("x")
+    target = 3 * x**2 * sin(x) + x**3 * cos(x)
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x},
+        complexity_weight=0.05,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols, sin, cos
+
+def solve(x):
+    # Initial: simple approximation
+    return 3 * x**2 * sin(x)
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_integral_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a symbolic integral discovery task.
+
+    The task is to find the integral of 2*x*sin(x) + x^2*cos(x):
+    integral = x^2 * sin(x)
+
+    The initial guess is incorrect.
+    """
+    x = symbols("x")
+    target = x**2 * sin(x)
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x},
+        complexity_weight=0.05,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols, sin, cos
+
+def solve(x):
+    # Initial: incorrect guess
+    return x**2 * cos(x)
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_regression_quadratic_task() -> Tuple[SymbolicRegressionEvaluator, str]:
+    """
+    Create a symbolic regression task to discover y = x^2 + 2*x + 1.
+
+    Given data points, discover the underlying formula.
+    """
+    x = symbols("x")
+
+    data_points = [
+        (0, 1),
+        (1, 4),
+        (2, 9),
+        (3, 16),
+        (4, 25),
+        (5, 36),
+        (-1, 0),
+        (-2, 1),
+        (-3, 4),
+    ]
+
+    evaluator = SymbolicRegressionEvaluator(
+        data_points=data_points,
+        symbols_dict={"x": x},
+        error_metric="mse",
+        parsimony_pressure=0.01,
+        max_complexity=20,
+    )
+
+    initial_code = """
+from sympy import symbols
+
+def solve(x):
+    # Initial: linear approximation
+    return 5 * x + 1
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_regression_trig_task() -> Tuple[SymbolicRegressionEvaluator, str]:
+    """
+    Create a symbolic regression task to discover y = 2*sin(x) + 1.
+
+    Given noisy data points, discover the trigonometric formula.
+    """
+    x = symbols("x")
+
+    np.random.seed(42)
+    data_points = []
+    for xi in np.linspace(-np.pi, np.pi, 20):
+        yi = 2 * np.sin(xi) + 1 + np.random.normal(0, 0.1)
+        data_points.append((float(xi), float(yi)))
+
+    evaluator = SymbolicRegressionEvaluator(
+        data_points=data_points,
+        symbols_dict={"x": x},
+        error_metric="mse",
+        parsimony_pressure=0.02,
+        max_complexity=15,
+    )
+
+    initial_code = """
+from sympy import symbols, sin
+
+def solve(x):
+    # Initial: simple sine approximation
+    return sin(x)
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_expression_rewrite_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a task to rewrite expressions into equivalent forms.
+
+    Target: Rewrite sin(2*x) as 2*sin(x)*cos(x)
+    """
+    x = symbols("x")
+    target = 2 * sin(x) * cos(x)
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x},
+        complexity_weight=0.1,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols, sin
+
+def solve(x):
+    # Initial: original form
+    return sin(2*x)
+"""
+
+    return evaluator, initial_code
+
+
+def symbolic_multi_variable_task() -> Tuple[SymbolicEvaluator, str]:
+    """
+    Create a multi-variable symbolic task.
+
+    Target: x^2 + y^2 + 2*x*y = (x + y)^2
+    """
+    x, y = symbols("x y")
+    target = (x + y) ** 2
+
+    evaluator = SymbolicEvaluator(
+        target_expression=target,
+        symbols_dict={"x": x, "y": y},
+        complexity_weight=0.05,
+        equivalence_bonus=100.0,
+    )
+
+    initial_code = """
+from sympy import symbols
+
+def solve(x, y):
+    # Initial: expanded form
+    return x**2 + y**2 + 2*x*y
+"""
+
+    return evaluator, initial_code
+
+
 __all__ = [
     "logistic_function_evolve_block_task",
     "composite_function_no_block_task",
     "damped_sine_wave_task",
     "piecewise_function_task",
+    "symbolic_simplification_task",
+    "symbolic_trig_identity_task",
+    "symbolic_derivative_task",
+    "symbolic_integral_task",
+    "symbolic_regression_quadratic_task",
+    "symbolic_regression_trig_task",
+    "symbolic_expression_rewrite_task",
+    "symbolic_multi_variable_task",
 ]

@@ -115,7 +115,7 @@ class HuggingFaceBackend(BaseLLMBackend):
             config.model_id,
             torch_dtype=torch.float16,
             token=hf_token,
-        ).to(self.device)
+        ).to(self.device) # type: ignore
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

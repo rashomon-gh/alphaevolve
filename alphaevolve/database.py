@@ -268,7 +268,6 @@ class Database:
             return
 
         if self.selection_strategy == SelectionStrategy.MAP_ELITES:
-            # Keep best diverse programs
             groups = {}
             for program in self.population:
                 length_bucket = len(program.code) // 50 * 50
@@ -284,9 +283,20 @@ class Database:
                 selected.append(bucket[0])
                 if len(selected) >= self.population_size:
                     break
+
+            if len(selected) < self.population_size:
+                all_sorted = sorted(
+                    self.population, key=lambda p: p.fitness, reverse=True
+                )
+                added_ids = {p.id for p in selected}
+                for prog in all_sorted:
+                    if prog.id not in added_ids:
+                        selected.append(prog)
+                        if len(selected) >= self.population_size:
+                            break
+
             self.population = selected[: self.population_size]
         else:
-            # Keep best programs
             self.population.sort(key=lambda p: p.fitness, reverse=True)
             self.population = self.population[: self.population_size]
 

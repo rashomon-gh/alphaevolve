@@ -191,16 +191,6 @@ def main():
 
     # Seed population
     logger.info("Seeding initial population...")
-    # The evaluator is a function that takes code and returns fitness
-    # For seeding, we need to execute the code first
-    initial_fitness = evaluator(initial_code)
-    database.seed(initial_code, initial_fitness)
-    logger.info(f"Seeded with fitness: {initial_fitness:.4f}")
-
-    # Seed population
-    logger.info("Seeding initial population...")
-    # The evaluator is a function that takes code and returns fitness
-    # For seeding, we need to execute the code first
     initial_fitness = evaluator(initial_code)
     database.seed(initial_code, initial_fitness)
     logger.info(f"Seeded with fitness: {initial_fitness:.4f}")
@@ -229,7 +219,7 @@ def main():
         sample_data=sample_data,
     )
 
-    # Run evolutionary search
+    # Run search
     stats = orchestrator.run(
         num_generations=config.num_generations,
         population_size=config.population_size,
@@ -238,7 +228,7 @@ def main():
 
     # Print final results
     logger.info("\n" + "=" * 70)
-    logger.info("EVOLUTIONARY SEARCH COMPLETE")
+    logger.info("Program Search Completed.")
     logger.info("=" * 70)
 
     best_program = orchestrator.get_best_program()

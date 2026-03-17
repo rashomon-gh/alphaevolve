@@ -15,7 +15,11 @@ from alphaevolve.orchestrator import Orchestrator
 
 # Keep existing utility modules
 from alphaevolve.task_loader import TaskLoader, TaskSpecification
-from alphaevolve.search import NumericalEvaluator
+from alphaevolve.search import (
+    NumericalEvaluator,
+    SymbolicEvaluator,
+    SymbolicRegressionEvaluator,
+)
 from alphaevolve.program_validator import (
     ProgramValidator,
     validate_program,
@@ -44,6 +48,8 @@ __all__ = [
     "TaskLoader",
     "TaskSpecification",
     "NumericalEvaluator",
+    "SymbolicEvaluator",
+    "SymbolicRegressionEvaluator",
     "ProgramValidator",
     "validate_program",
     "validate_program_file",
