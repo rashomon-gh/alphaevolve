@@ -1,13 +1,13 @@
 from loguru import logger
 
-from prog_search.config import Config
-from prog_search.database import Database, SelectionStrategy
-from prog_search.llm_client import LLMConfig
-from prog_search.orchestrator import Orchestrator
-from prog_search.task_loader import TaskLoader
-from prog_search.utils import write_solution_to_file
-from prog_search import examples
-from prog_search.cli import create_cli_args
+from alphaevolve.config import Config
+from alphaevolve.database import Database, SelectionStrategy
+from alphaevolve.llm_client import LLMConfig
+from alphaevolve.orchestrator import Orchestrator
+from alphaevolve.task_loader import TaskLoader
+from alphaevolve.utils import write_solution_to_file
+from alphaevolve import examples
+from alphaevolve.cli import create_cli_args
 
 
 def _extract_sample_data(task_file: str) -> dict:

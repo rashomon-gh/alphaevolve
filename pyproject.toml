@@ -1,5 +1,5 @@
 [project]
-name = "prog-search"
+name = "alphaevolve"
 version = "0.3.0"
 description = "LLM-Guided Evolutionary Coding Agent"
 readme = "README.md"
@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["prog_search"]
+packages = ["alphaevolve"]
 exclude = [
     "tests", 
     "tests/*", 
