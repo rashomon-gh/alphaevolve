@@ -142,9 +142,61 @@ Test Python syntax of all modules:
 python test_syntax.py
 ```
 
+## Evaluator Types
+
+AlphaEvolve supports multiple evaluator types for different problem domains:
+
+### NumericalEvaluator
+
+For numerical function fitting with concrete input/output pairs:
+
+```python
+from alphaevolve.search import NumericalEvaluator
+
+evaluator = NumericalEvaluator(
+    test_inputs=[1, 2, 3, 4, 5],
+    test_targets=[2, 4, 6, 8, 10],
+    optimization_strategy="minimize",
+)
+```
+
+### SymbolicEvaluator
+
+For symbolic mathematics problems using SymPy:
+
+```python
+from sympy import symbols, sin, cos
+from alphaevolve.search import SymbolicEvaluator
+
+x = symbols('x')
+evaluator = SymbolicEvaluator(
+    target_expression=sin(x)**2 + cos(x)**2,  # Target: 1
+    symbols_dict={'x': x},
+    complexity_weight=0.1,
+    equivalence_bonus=100.0,
+)
+```
+
+### SymbolicRegressionEvaluator
+
+For discovering mathematical formulas from data points:
+
+```python
+from sympy import symbols
+from alphaevolve.search import SymbolicRegressionEvaluator
+
+x = symbols('x')
+evaluator = SymbolicRegressionEvaluator(
+    data_points=[(0, 1), (1, 4), (2, 9), (3, 16), (4, 25)],
+    symbols_dict={'x': x},
+    parsimony_pressure=0.01,  # Penalize complex expressions
+    max_complexity=20,
+)
+```
+
 ## Example Usages
 
-### Task File with EVOLVE-BLOCK Markers
+### Numerical Task File with EVOLVE-BLOCK Markers
 
 Create `my_task.py`:
 
@@ -173,6 +225,46 @@ Run with:
 
 ```bash
 uv run main.py --task-file my_task.py --use-evolve-blocks
+```
+
+### Symbolic Task File with EVOLVE-BLOCK Markers
+
+Create `symbolic_task.py` for symbolic mathematics problems:
+
+```python
+from sympy import symbols, sin, cos, simplify
+
+def get_target():
+    return 1  # sin²(x) + cos²(x) = 1
+
+# EVOLVE-BLOCK-START
+def solve(x):
+    """Discover the trigonometric identity"""
+    return sin(x)**2 + cos(x)**2
+# EVOLVE-BLOCK-END
+
+def evaluate():
+    x = symbols('x')
+    target = get_target()
+    result_expr = solve(x)
+    
+    diff = simplify(result_expr - target)
+    is_exact = diff == 0
+    
+    if is_exact:
+        from sympy import count_ops
+        complexity = count_ops(result_expr)
+        fitness = 100.0 + 1.0 / (1.0 + complexity)
+    else:
+        fitness = 0.0
+    
+    return {"fitness": fitness}
+```
+
+Run with:
+
+```bash
+uv run main.py --task-file symbolic_task.py --use-evolve-blocks
 ```
 
 ### Programmatic Usage
@@ -227,3 +319,29 @@ stats = orchestrator.run(
 best = orchestrator.get_best_program()
 print(best.code)
 ```
+
+## Built-in Example Tasks
+
+AlphaEvolve includes example tasks in `alphaevolve/examples.py`:
+
+**Numerical Tasks:**
+- `logistic_function_evolve_block_task()` - Sigmoid function fitting
+- `composite_function_no_block_task()` - Composite x²sin(x) + 2cos(x/2)
+- `damped_sine_wave_task()` - Damped oscillation fitting
+- `piecewise_function_task()` - Piecewise linear/quadratic
+
+**Symbolic Tasks:**
+- `symbolic_simplification_task()` - Find (x+1)² equivalent
+- `symbolic_trig_identity_task()` - Discover sin²(x) + cos²(x) = 1
+- `symbolic_derivative_task()` - Find derivative of x³sin(x)
+- `symbolic_integral_task()` - Find integral expression
+- `symbolic_regression_quadratic_task()` - Discover x² + 2x + 1 from data
+- `symbolic_regression_trig_task()` - Discover 2sin(x) + 1 from data
+- `symbolic_expression_rewrite_task()` - Rewrite sin(2x) as 2sin(x)cos(x)
+- `symbolic_multi_variable_task()` - Multi-variable (x+y)²
+
+Example task files are also available in `examples/`:
+- `example_simple.py` - Basic linear function
+- `example_composite.py` - Composite function
+- `example_symbolic.py` - Symbolic regression
+- `example_symbolic_identity.py` - Trigonometric identity discovery
