@@ -83,7 +83,7 @@ uv run main.py --task-file example_task.py --use-evolve-blocks
 uv run main.py \
   --backend openai \
   --base-url http://localhost:11434/v1 \
-  --model-id llama3 \
+  --model-id gemma3 \
   --population-size 10 \
   --num-generations 50 \
   --selection-strategy map_elites \
