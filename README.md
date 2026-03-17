@@ -18,18 +18,13 @@ AlphaEvolve uses Large Language Models (LLMs) as mutation operators in an evolut
 
 ### Setup
 
-1. Clone repository:
-```bash
-git clone <repository-url>
-cd alphaevolve
-```
 
-2. Install dependencies using uv:
+Install dependencies using uv:
 ```bash
 uv sync
 ```
 
-3. Create a `.env` file:
+Create a `.env` file:
 ```bash
 cp .env.example .env
 # Edit .env with your credentials
@@ -63,7 +58,7 @@ uv run main.py
 uv run main.py \
   --backend openai \
   --base-url http://localhost:11434/v1 \
-  --model-id llama3
+  --model-id gemma3
 ```
 
 **VLLM** (high-throughput local inference):
@@ -71,15 +66,7 @@ uv run main.py \
 uv run main.py \
   --backend openai \
   --base-url http://localhost:8000/v1 \
-  --model-id meta-llama/Llama-3-8b
-```
-
-**OpenAI API**:
-```bash
-uv run main.py \
-  --backend openai \
-  --model-id gpt-4 \
-  --api-key $OPENAI_API_KEY
+  --model-id gemma3
 ```
 
 ### With Task File (EVOLVE-BLOCK Markers)
