@@ -24,15 +24,18 @@ providers:
 
 tiers:
   # Paper-style Flash/Pro mixture: ~4:1 fast:strong by sampling weight.
+  # max_tokens must leave reasoning models (Qwen3-class) room to think AND
+  # emit the diff — a too-small budget truncates mid-thought and every
+  # completion becomes a malformed-diff parse failure.
   fast:
     provider: local-debug
     model: ${FAST_MODEL:-Qwen3.8-27B-8bit}
     weight: 4
     temperature: 0.9
-    max_tokens: 4096
+    max_tokens: 16384
   strong:
     provider: local-debug
     model: ${STRONG_MODEL:-Qwen3.8-27B-8bit}
     weight: 1
     temperature: 0.7
-    max_tokens: 8192
+    max_tokens: 24576
