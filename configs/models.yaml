@@ -1,41 +1,36 @@
 # LLM providers and tiers. All endpoints are OpenAI-compatible; values support
-# ${ENV_VAR:-default} interpolation. Pick which provider backs each tier here,
-# or override per run via the `models:` section of a run config, e.g.:
-#
-#   models:
-#     tiers:
-#       fast:   {provider: lmstudio, model: qwen2.5-coder-14b-instruct}
-#       strong: {provider: spike, model: glm-4.5}
+# ${ENV_VAR:-default} interpolation. Override per run via the `models:` section
+# of a run config, or point a tier at another model with FAST_MODEL /
+# STRONG_MODEL / DEBUG_MODEL env vars. To run on the debug tier only, set
+# `ensemble: [debug]` in the run config.
 
 providers:
-  # LM Studio on this machine (CLAUDE.md fast tier).
-  lmstudio:
-    base_url: ${LMSTUDIO_BASE_URL:-http://localhost:1234/v1}
-
-  # Institutional endpoints (spike.tue.nl) — strong tier; key required.
+  # Institutional spike.tue.nl gateway — used for all tiers. Key required.
+  # Models scale to zero, so the first request may sit through a cold start.
   spike:
-    base_url: ${SPIKE_BASE_URL:-https://spike.tue.nl/v1}
+    base_url: ${SPIKE_GATEWAY:-https://spike-gateway-runai-aiteam.inference.spike.tue.nl/v1}
     api_key_env: SPIKE_API_KEY
-
-  # Local debugging endpoint (omlx server).
-  local-debug:
-    base_url: ${LOCAL_DEBUG_BASE_URL:-http://127.0.0.1:2026/v1}
-    api_key_env: OMLX_LOCAL_API_KEY
+    timeout_s: 600
 
 tiers:
   # Paper-style Flash/Pro mixture: ~4:1 fast:strong by sampling weight.
-  # max_tokens must leave reasoning models (Qwen3-class) room to think AND
-  # emit the diff — a too-small budget truncates mid-thought and every
-  # completion becomes a malformed-diff parse failure.
+  # max_tokens is the server-allowed maximum per model (probed via an
+  # oversized request; the gateway rejects anything higher).
   fast:
-    provider: local-debug
-    model: ${FAST_MODEL:-Qwen3.8-27B-8bit}
+    provider: spike
+    model: ${FAST_MODEL:-Gemma-4-31B-IT-NVFP4}
     weight: 4
     temperature: 0.9
-    max_tokens: 16384
+    max_tokens: 8192
   strong:
-    provider: local-debug
-    model: ${STRONG_MODEL:-Qwen3.8-27B-8bit}
+    provider: spike
+    model: ${STRONG_MODEL:-DeepSeek-V4-Flash-0731}
     weight: 1
     temperature: 0.7
-    max_tokens: 24576
+    max_tokens: 8192
+  debug:
+    provider: spike
+    model: ${DEBUG_MODEL:-gemma-4-12B-it}
+    weight: 1
+    temperature: 0.9
+    max_tokens: 8192
