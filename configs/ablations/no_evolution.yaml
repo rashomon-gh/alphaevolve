@@ -1,0 +1,4 @@
+# §4 ablation 1: always prompt from the initial program (no DB sampling).
+base: ../binpack.yaml
+ablation:
+  no_evolution: true

@@ -1,0 +1,4 @@
+# §4 ablation 3: disable meta-prompt evolution.
+base: ../binpack.yaml
+ablation:
+  no_meta: true

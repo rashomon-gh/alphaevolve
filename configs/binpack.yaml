@@ -1,0 +1,54 @@
+# Bin-packing smoke task (PLAN.md Phase 5). Paths are relative to this file.
+
+task:
+  name: binpack
+  initial_program: ../alphaevolve/tasks/binpack/initial_program.py
+  evaluator: ../alphaevolve/tasks/binpack/evaluator.py
+  problem_statement_file: ../alphaevolve/tasks/binpack/context.md
+  full_rewrite: false
+  cpu_time_s: 30
+  cascade:
+    - seeds: 1
+      timeout_s: 20
+      promote_if: {utilization: 0.5}   # stage-0 smoke: filter broken heuristics
+    - seeds: 3
+      timeout_s: 60
+  features:
+    - {name: code_length, bins: [700, 900, 1200, 1600, 2400]}
+    - {name: "score:worst_trace_utilization", bins: [0.5, 0.6, 0.65, 0.7, 0.75, 0.8]}
+
+models_config: models.yaml
+ensemble: [fast, strong]
+objective: utilization
+
+evolution:
+  islands: 4
+  migration_interval: 40
+  migration_count: 2
+  inspirations: 2
+  seed: 0
+
+prompting:
+  slots:
+    - name: change_scope
+      options:
+        - "Prefer a small, surgical change to the heuristic."
+        - "Feel free to restructure the whole heuristic body."
+      weights: [3, 1]
+  meta:
+    enabled: true
+    propose_every: 25
+    num_snippets: 2
+    seeds:
+      - "Consider the geometry of the remaining capacity vector, not just its sum."
+      - "Penalize placements that strand a lot of one resource while exhausting the other."
+
+limits:
+  max_samples: 300
+  max_seconds: 1800
+  concurrent_generations: 4
+  concurrent_evaluations: 4
+  queue_size: 8
+
+run_dir: runs
+dump_every: 5

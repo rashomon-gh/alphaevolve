@@ -1,0 +1,4 @@
+# §4 ablation 2: strip explicit problem context from prompts.
+base: ../binpack.yaml
+ablation:
+  no_context: true

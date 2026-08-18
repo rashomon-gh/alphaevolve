@@ -1,0 +1,37 @@
+# LLM providers and tiers. All endpoints are OpenAI-compatible; values support
+# ${ENV_VAR:-default} interpolation. Pick which provider backs each tier here,
+# or override per run via the `models:` section of a run config, e.g.:
+#
+#   models:
+#     tiers:
+#       fast:   {provider: lmstudio, model: qwen2.5-coder-14b-instruct}
+#       strong: {provider: spike, model: glm-4.5}
+
+providers:
+  # LM Studio on this machine (CLAUDE.md fast tier).
+  lmstudio:
+    base_url: ${LMSTUDIO_BASE_URL:-http://localhost:1234/v1}
+
+  # Institutional endpoints (spike.tue.nl) — strong tier; key required.
+  spike:
+    base_url: ${SPIKE_BASE_URL:-https://spike.tue.nl/v1}
+    api_key_env: SPIKE_API_KEY
+
+  # Local debugging endpoint.
+  local-debug:
+    base_url: ${LOCAL_DEBUG_BASE_URL:-http://127.0.0.1:2026/v1}
+
+tiers:
+  # Paper-style Flash/Pro mixture: ~4:1 fast:strong by sampling weight.
+  fast:
+    provider: local-debug
+    model: ${FAST_MODEL:-Qwen3.8-27B-8bit}
+    weight: 4
+    temperature: 0.9
+    max_tokens: 4096
+  strong:
+    provider: local-debug
+    model: ${STRONG_MODEL:-Qwen3.8-27B-8bit}
+    weight: 1
+    temperature: 0.7
+    max_tokens: 8192

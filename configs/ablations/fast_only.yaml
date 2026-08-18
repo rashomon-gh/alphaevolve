@@ -1,0 +1,3 @@
+# §4 ablation 5: small/fast base LLM only, no strong model.
+base: ../binpack.yaml
+ensemble: [fast]
