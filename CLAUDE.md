@@ -15,7 +15,9 @@ alphaevolve/
 ├── task/            # Task spec API (§2.1)
 │   ├── markers.py       # EVOLVE-BLOCK-START/END parsing; skeleton vs evolvable regions
 │   ├── spec.py          # TaskSpec: initial program, evaluate entrypoint, cascade config
-│   └── sandbox.py       # Subprocess/container execution of evaluate() with timeouts
+│   └── sandbox.py       # Subprocess execution of evaluate() with timeouts + process-group
+│                        #   kill; passes $AE_TASK_PARAMS (task sizes/budgets) and
+│                        #   $AE_STATE_DIR (persistent cross-generation state, §3.2)
 ├── prompting/       # Prompt sampler (§2.2)
 │   ├── sampler.py       # Assembles: prior programs + scores, current program, instructions
 │   ├── context.py       # Explicit context (problem text, equations, literature snippets)
@@ -36,12 +38,17 @@ alphaevolve/
 ├── pipeline/        # Distributed pipeline (§2.6)
 │   └── controller.py    # asyncio orchestrator: sample → generate → apply → evaluate → register
 ├── tasks/           # Benchmark tasks (validation targets)
-│   ├── matmul/          # Tensor decomposition for ⟨m,n,p⟩ (§3.1)
-│   ├── kissing/         # Kissing number lower bounds (§3.2)
-│   ├── packing/         # Circle/hexagon packing (§3.2, App. B)
+│   ├── matmul/          # Tensor decomposition for ⟨m,n,p⟩ (§3.1); exact half-integer
+│   │                    #   verification (real + complex); *_lossonly.py = restricted
+│   │                    #   evolve region for the function-only ablation
+│   ├── kissing/         # Kissing number lower bounds (§3.2); evolves the search heuristic
+│   ├── packing/         # Circle packing, max sum of radii (§3.2, App. B.12)
 │   └── binpack/         # 2D vector bin-packing heuristic + simulator (§3.3.1 analog)
-├── ablations/       # §4 ablation harness (no-evolution, no-context, no-meta, single-LLM, function-only)
-└── configs/         # YAML per-task run configs
+├── reporting.py     # Phase 8/9: run reports (curves, cost, failure modes) + `compare`
+├── config.py        # YAML loading, ${ENV:-default} interpolation, `base:` inheritance
+├── cli.py           # run / inspect / report / compare / ablate
+└── configs/         # YAML per-task run configs; configs/ablations/ = §4 harness
+                     #   (no-evolution, no-context, no-meta, fast-only, loss-only)
 ```
 
 ## Non-negotiable design invariants
@@ -56,11 +63,13 @@ alphaevolve/
 
 ## LLM backends
 
-All model access goes through the OpenAI-compatible async client in `generation/llm.py`. Endpoints are configured in `configs/models.yaml`, never hardcoded. The intended setup mirrors the paper's Flash/Pro ensemble:
+All model access goes through the OpenAI-compatible async client in `generation/llm.py`. Endpoints are configured in `configs/models.yaml`, never hardcoded. All tiers currently run on the institutional spike.tue.nl gateway (`SPIKE_GATEWAY` + `SPIKE_API_KEY` env vars), mirroring the paper's Flash/Pro ensemble:
 
-- **Fast tier** (high sample rate): a local model served by LM Studio (`http://localhost:1234/v1`) on the M5 Max.
-- **Strong tier** (occasional, higher quality): remote institutional endpoints (spike.tue.nl — e.g. GLM, DeepSeek, Kimi-class models), or a hosted API if configured.
-- Ensemble ratio is a config value (start ~4:1 fast:strong, per the paper's throughput/quality rationale).
+- **Fast tier** (high sample rate, weight 4): `Gemma-4-31B-IT-NVFP4` (override with `FAST_MODEL`).
+- **Strong tier** (occasional, higher quality, weight 1): `DeepSeek-V4-Flash-0731` (override with `STRONG_MODEL`).
+- **Debug tier**: `gemma-4-12B-it` — cheap and fast; select with `ensemble: [debug]` in a run config or `DEBUG_MODEL`.
+
+Gateway models scale to zero: the first request may sit through a cold start of several minutes (provider `timeout_s` accommodates this). Per-tier `max_tokens` is set to probed server maximums — gemma-4-12B has a hard 16384-token TOTAL context; reasoning models (Qwen3-class) need ≥16k output budget or every completion truncates mid-thought and shows up as a 100% malformed-diff rate.
 
 Never assume a specific model is available; probe `/v1/models` at startup and fail with a clear message. All prompts and raw completions are logged to the run directory (JSONL) for debugging and for the ablation analysis.
 
@@ -69,7 +78,7 @@ Never assume a specific model is available; probe `/v1/models` at startup and fa
 - Python 3.12+, `uv` for env/deps, `ruff` + `pyright` clean before commit.
 - Fully typed public APIs; dataclasses (frozen where possible) for records like `Program`, `EvalResult`, `PromptBundle`.
 - `asyncio` end-to-end in the pipeline; no threads except inside the sandboxed evaluator subprocesses.
-- Numerical work in tasks uses NumPy/JAX; for matmul decomposition, exactness check = round entries to nearest integer/half-integer and verify the tensor equation exactly (paper §3.1).
+- Numerical work in tasks uses NumPy (CPU — chosen over JAX for Apple Silicon portability; the einsum sizes in scope don't need an accelerator); for matmul decomposition, exactness check = round entries to nearest integer/half-integer (real or complex) and verify the tensor equation exactly in integer arithmetic (paper §3.1).
 - Tests: `pytest`, with a fake deterministic LLM (`tests/fakes/scripted_llm.py`) so the whole loop is testable offline. Every diff-application edge case gets a unit test.
 - Keep modules small; the controller should read as a transcription of Figure 2 of the paper.
 
@@ -79,9 +88,15 @@ Never assume a specific model is available; probe `/v1/models` at startup and fa
 uv sync                                   # install
 uv run pytest -q                          # tests (offline, fake LLM)
 uv run alphaevolve run configs/binpack.yaml         # smoke task (fast eval, good first target)
-uv run alphaevolve run configs/matmul_444.yaml      # ⟨4,4,4⟩ tensor decomposition
-uv run alphaevolve ablate configs/ablations/*.yaml  # §4 ablation suite
-uv run alphaevolve inspect runs/<id>      # lineage browser / best-program dump
+uv run alphaevolve run configs/matmul_222.yaml      # ⟨2,2,2⟩ → rediscover Strassen rank 7
+uv run alphaevolve run configs/matmul_444.yaml      # ⟨4,4,4⟩ tensor decomposition (stretch)
+uv run alphaevolve run configs/kissing_3.yaml       # kissing d=3 → rediscover 12
+uv run alphaevolve run configs/packing_26.yaml      # circle packing n=26 (paper ref 2.635)
+uv run alphaevolve run <config> --resume runs/<id>  # resume a killed run
+uv run alphaevolve inspect runs/<id> --lineage      # lineage browser / best-program dump
+uv run alphaevolve report runs/<id>                 # curves, cost accounting, failure modes
+uv run alphaevolve ablate configs/ablations/matmul_222_*.yaml   # §4 ablation suite
+uv run alphaevolve compare runs/<a> runs/<b> --out ablations/report.md
 ```
 
 ## What "done" means for a change

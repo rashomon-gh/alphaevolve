@@ -25,17 +25,21 @@ uv run pytest -q
 
 ## Configure models
 
-Edit `configs/models.yaml`. Three providers are predefined; pick which one
-backs each tier (or override via env vars / per-run config):
+Edit `configs/models.yaml`. All tiers run on the spike.tue.nl gateway
+(`SPIKE_GATEWAY` + `SPIKE_API_KEY` env vars); swap any tier's model via env
+var or a per-run `models:` override:
 
-| Provider | Endpoint | Use |
-| --- | --- | --- |
-| `lmstudio` | `${LMSTUDIO_BASE_URL:-http://localhost:1234/v1}` | fast tier on the local machine |
-| `spike` | `${SPIKE_BASE_URL}` (+ `SPIKE_API_KEY`) | strong tier, institutional endpoints |
-| `local-debug` | `${LOCAL_DEBUG_BASE_URL:-http://127.0.0.1:2026/v1}` | debugging |
+| Tier | Default model | Weight | Override |
+| --- | --- | --- | --- |
+| `fast` | `Gemma-4-31B-IT-NVFP4` | 4 | `FAST_MODEL` |
+| `strong` | `DeepSeek-V4-Flash-0731` | 1 | `STRONG_MODEL` |
+| `debug` | `gemma-4-12B-it` | — | `DEBUG_MODEL`, or `ensemble: [debug]` |
 
 Providers are probed at startup (`/v1/models`); a missing endpoint or model
-fails fast with a clear message.
+fails fast with a clear message. Gateway models scale to zero — the first
+request may wait out a multi-minute cold start. Per-tier `max_tokens` values
+are the probed server maximums; reasoning models need ≥16k output budget or
+completions truncate mid-thought (visible as a 100% malformed-diff rate).
 
 ## Run
 
@@ -77,6 +81,11 @@ constructions (Phase 7); run reports with score curves, cost accounting, and
 the failure-mode dashboard (Phase 8); and the §4 ablation configs + compare
 harness (Phase 9). The remaining work is compute: long evolutionary runs on
 the matmul/kissing/packing milestones and the ablation sweeps.
+
+Validated live (2026-08-18): a 300-sample fast-tier-only binpack run against
+the spike gateway improved utilization 0.8391 (naive first-fit) → 0.8535
+across a three-generation lineage, with a 3.7% malformed-diff rate and zero
+pipeline errors.
 
 The matmul optimizer runs on NumPy (CPU) rather than JAX: portable across
 Apple Silicon without the JAX-Metal caveats, and the tiny einsum workloads in
