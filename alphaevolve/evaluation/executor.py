@@ -35,6 +35,7 @@ async def evaluate_stage(
     *,
     base_seed: int = 0,
     aggregation: str = "mean",
+    state_dir: Path | None = None,
 ) -> tuple[dict[str, float] | None, str | None, dict[str, str], float]:
     """Evaluate one cascade stage over `stage.seeds` parallel seeds.
 
@@ -51,6 +52,8 @@ async def evaluate_stage(
                 timeout_s=stage.timeout_s,
                 cpu_time_s=spec.cpu_time_s,
                 memory_mb=spec.memory_mb,
+                task_params=spec.params or None,
+                state_dir=state_dir,
             )
             for i in range(stage.seeds)
         )

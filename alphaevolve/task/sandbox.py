@@ -59,9 +59,24 @@ async def run_evaluation(
     timeout_s: float,
     cpu_time_s: float | None = None,
     memory_mb: int | None = None,
+    task_params: dict[str, object] | None = None,
+    state_dir: Path | None = None,
 ) -> SandboxResult:
-    """Run evaluate(program_path, seed, stage) in a fresh subprocess."""
+    """Run evaluate(program_path, seed, stage) in a fresh subprocess.
+
+    ``task_params`` reaches the evaluator as JSON in $AE_TASK_PARAMS (task
+    sizes, budgets). ``state_dir`` is exported as $AE_STATE_DIR — a run-scoped
+    directory where evaluators may persist state between generations (the
+    paper's §3.2 iterative-refinement chain, e.g. best-construction-so-far).
+    Evaluators run concurrently, so state writers must use atomic replace.
+    """
     started = time.monotonic()
+    env = dict(os.environ)
+    if task_params:
+        env["AE_TASK_PARAMS"] = json.dumps(task_params)
+    if state_dir is not None:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        env["AE_STATE_DIR"] = str(state_dir)
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         out_path = Path(tmp.name)
     try:
@@ -78,6 +93,7 @@ async def run_evaluation(
             stderr=asyncio.subprocess.PIPE,
             preexec_fn=_make_preexec(cpu_time_s, memory_mb),
             start_new_session=True,
+            env=env,
         )
         try:
             stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)

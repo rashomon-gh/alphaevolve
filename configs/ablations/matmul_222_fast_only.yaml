@@ -1,0 +1,3 @@
+# §4 ablation 5 (small base LLM only) on the matmul_222 task.
+base: ../matmul_222.yaml
+ensemble: [fast]

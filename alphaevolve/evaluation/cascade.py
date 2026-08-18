@@ -33,7 +33,9 @@ def promoted(scores: dict[str, float], thresholds: dict[str, float]) -> bool:
     return all(key in scores and scores[key] >= min_value for key, min_value in thresholds.items())
 
 
-async def run_cascade(spec: TaskSpec, code: str, *, base_seed: int = 0) -> EvalResult:
+async def run_cascade(
+    spec: TaskSpec, code: str, *, base_seed: int = 0, state_dir: Path | None = None
+) -> EvalResult:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", prefix="ae_candidate_", delete=False
     ) as tmp:
@@ -46,7 +48,7 @@ async def run_cascade(spec: TaskSpec, code: str, *, base_seed: int = 0) -> EvalR
         stage_reached = -1
         for index, stage in enumerate(spec.cascade):
             stage_scores, failure, stage_artifacts, seconds = await evaluate_stage(
-                spec, program_path, index, stage, base_seed=base_seed
+                spec, program_path, index, stage, base_seed=base_seed, state_dir=state_dir
             )
             total_seconds += seconds
             if stage_scores is None:

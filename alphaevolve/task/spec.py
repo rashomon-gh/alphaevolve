@@ -36,6 +36,8 @@ class TaskSpec:
     features: list[FeatureSpec] = field(default_factory=list)
     cpu_time_s: float | None = None
     memory_mb: int | None = None
+    params: dict[str, object] = field(default_factory=dict)  # $AE_TASK_PARAMS for the evaluator
+    uses_state: bool = False  # give evaluators a persistent $AE_STATE_DIR (paper §3.2)
 
     def __post_init__(self) -> None:
         parse_program(self.initial_program)  # validate markers early
@@ -70,4 +72,6 @@ class TaskSpec:
             features=features,
             cpu_time_s=cfg.get("cpu_time_s"),
             memory_mb=cfg.get("memory_mb"),
+            params=dict(cfg.get("params", {})),
+            uses_state=bool(cfg.get("uses_state", False)),
         )

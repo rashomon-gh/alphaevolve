@@ -1,0 +1,4 @@
+# §4 ablation (no context) on the matmul_222 task.
+base: ../matmul_222.yaml
+ablation:
+  no_context: true

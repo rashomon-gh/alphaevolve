@@ -41,9 +41,19 @@ fails fast with a clear message.
 
 ```bash
 uv run alphaevolve run configs/binpack.yaml          # smoke task (Phase 5)
+uv run alphaevolve run configs/matmul_222.yaml       # ⟨2,2,2⟩ → rediscover Strassen (Phase 6)
+uv run alphaevolve run configs/matmul_444.yaml       # ⟨4,4,4⟩ stretch goal (rank ≤ 49)
+uv run alphaevolve run configs/kissing_3.yaml        # kissing d=3 → rediscover 12 (Phase 7)
+uv run alphaevolve run configs/packing_26.yaml       # circle packing n=26 (Phase 7)
 uv run alphaevolve inspect runs/<run-dir> --lineage  # best programs + lineage
-uv run alphaevolve ablate configs/ablations/*.yaml   # §4 ablation suite
+uv run alphaevolve report runs/<run-dir>             # curves, cost, failure modes (Phase 8)
+uv run alphaevolve ablate configs/ablations/matmul_222_*.yaml   # §4 ablations (Phase 9)
+uv run alphaevolve compare runs/<a> runs/<b> --out ablations/report.md
 ```
+
+The construction tasks (kissing, packing) evolve a *search heuristic* that
+receives the best known construction and a time budget (paper §3.2); the best
+construction persists in the run's `state/` directory across generations.
 
 Runs are killable (Ctrl-C) and resumable:
 
@@ -57,8 +67,18 @@ pipeline event, and periodic best-program dumps under `best/`.
 
 ## Status
 
-Phases 0–5 of `PLAN.md` are implemented: task/marker API, SEARCH/REPLACE diff
+All phases of `PLAN.md` are implemented: task/marker API, SEARCH/REPLACE diff
 engine, sandboxed cascade evaluation, MAP-Elites × islands database, prompt
 sampler (context, stochastic templates, meta-prompt evolution), LLM ensemble,
-async pipeline, CLI, and the bin-packing smoke task. Phases 6–9 (matmul tensor
-decomposition, math constructions, hardening, ablation compute) are next.
+async pipeline, CLI (Phases 0–5); matmul tensor decomposition with exact
+half-integer verification, real and complex (Phase 6); kissing-number and
+circle-packing tasks that evolve the search heuristic with persisted
+constructions (Phase 7); run reports with score curves, cost accounting, and
+the failure-mode dashboard (Phase 8); and the §4 ablation configs + compare
+harness (Phase 9). The remaining work is compute: long evolutionary runs on
+the matmul/kissing/packing milestones and the ablation sweeps.
+
+The matmul optimizer runs on NumPy (CPU) rather than JAX: portable across
+Apple Silicon without the JAX-Metal caveats, and the tiny einsum workloads in
+scope don't need an accelerator. The evolved code may still adopt any library
+available in the environment.

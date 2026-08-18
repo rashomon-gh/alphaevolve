@@ -1,0 +1,28 @@
+# ⟨4,4,4⟩ matmul tensor decomposition (PLAN.md Phase 6 stretch goal: ≤ 49;
+# the paper's 48 needs complex-valued factors — the evaluator's exactness
+# check already supports complex half-integers).
+
+base: matmul_222.yaml
+
+task:
+  name: matmul_444
+  params:
+    m: 4
+    n: 4
+    p: 4
+    start_rank: 52
+    min_rank: 47
+    stage_budgets: [[1, 150], [1, 2000], [2, 8000]]
+  cascade:
+    - seeds: 1
+      timeout_s: 60
+      promote_if: {neg_final_loss: -2.0}
+    - seeds: 1
+      timeout_s: 900
+      promote_if: {neg_final_loss: -1.0}
+    - seeds: 1
+      timeout_s: 3600
+
+limits:
+  max_samples: 2000
+  max_seconds: 86400

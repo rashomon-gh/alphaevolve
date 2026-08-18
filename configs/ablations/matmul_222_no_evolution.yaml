@@ -1,0 +1,4 @@
+# §4 ablation (no evolution) on the matmul_222 task.
+base: ../matmul_222.yaml
+ablation:
+  no_evolution: true

@@ -76,6 +76,22 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    from alphaevolve.reporting import write_report
+
+    out = write_report(Path(args.run_dir).resolve(), Path(args.out) if args.out else None)
+    print(f"report written: {out}")
+    return 0
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    from alphaevolve.reporting import write_comparison
+
+    out = write_comparison([Path(d).resolve() for d in args.run_dirs], Path(args.out))
+    print(f"comparison written: {out}")
+    return 0
+
+
 def _cmd_ablate(args: argparse.Namespace) -> int:
     for config in args.configs:
         print(f"=== ablation config: {config} ===")
@@ -101,6 +117,16 @@ def main(argv: list[str] | None = None) -> int:
     p_inspect.add_argument("--lineage", action="store_true")
     p_inspect.add_argument("--dump-best", action="store_true")
     p_inspect.set_defaults(func=_cmd_inspect)
+
+    p_report = sub.add_parser("report", help="write a markdown report for a run directory")
+    p_report.add_argument("run_dir")
+    p_report.add_argument("--out", default=None)
+    p_report.set_defaults(func=_cmd_report)
+
+    p_compare = sub.add_parser("compare", help="compare runs (ablation report)")
+    p_compare.add_argument("run_dirs", nargs="+")
+    p_compare.add_argument("--out", default="ablations/report.md")
+    p_compare.set_defaults(func=_cmd_compare)
 
     p_ablate = sub.add_parser("ablate", help="run ablation configs sequentially")
     p_ablate.add_argument("configs", nargs="+")

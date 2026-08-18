@@ -1,0 +1,4 @@
+# §4 ablation (no context) on the kissing_3 task.
+base: ../kissing_3.yaml
+ablation:
+  no_context: true

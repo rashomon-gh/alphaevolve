@@ -1,0 +1,3 @@
+# §4 ablation 5 (small base LLM only) on the kissing_3 task.
+base: ../kissing_3.yaml
+ensemble: [fast]

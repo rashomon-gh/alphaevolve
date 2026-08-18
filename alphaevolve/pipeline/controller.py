@@ -154,6 +154,7 @@ class Controller:
         (self.run_dir / "best").mkdir(parents=True, exist_ok=True)
         self._events_path = self.run_dir / "logs" / "events.jsonl"
         self._meta_path = self.run_dir / "meta_prompts.json"
+        self._state_dir = self.run_dir / "state" if self.spec.uses_state else None
         self._stop = asyncio.Event()
         self._genesis: Program | None = None
 
@@ -203,7 +204,9 @@ class Controller:
                 self._register_in_islands(program)
             self._log_event("resumed", programs=len(evaluated))
             return
-        result = await run_cascade(self.spec, self.spec.initial_program, base_seed=self.seed)
+        result = await run_cascade(
+            self.spec, self.spec.initial_program, base_seed=self.seed, state_dir=self._state_dir
+        )
         if not result.ok:
             raise RuntimeError(
                 f"initial program failed evaluation: {result.failure_reason}\n"
@@ -354,7 +357,9 @@ class Controller:
                 self._record_worker_error("evaluator")
 
     async def _handle_eval_job(self, run_id: str, job: _EvalJob) -> None:
-        result = await run_cascade(self.spec, job.code, base_seed=self.seed)
+        result = await run_cascade(
+            self.spec, job.code, base_seed=self.seed, state_dir=self._state_dir
+        )
         status = EVALUATED if result.ok else FAILED
         program = Program(
             id=new_id(),
@@ -383,6 +388,7 @@ class Controller:
                 stage=result.stage_reached,
                 admitted=admitted,
                 tier=job.completion.tier,
+                eval_seconds=result.seconds,
             )
             if self.dump_every and self.stats.registered % self.dump_every == 0:
                 self._dump_best()
@@ -392,6 +398,7 @@ class Controller:
                 "eval_failed",
                 reason=(result.failure_reason or "")[:300],
                 tier=job.completion.tier,
+                eval_seconds=result.seconds,
             )
 
     async def _llm_feedback(self, code: str) -> dict[str, float]:

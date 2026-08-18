@@ -1,0 +1,5 @@
+# §4 ablation 4 (no full-file evolution) on the matmul task: only the
+# loss-and-gradient function evolves; the Adam loop is frozen skeleton.
+base: ../matmul_222.yaml
+task:
+  initial_program: ../alphaevolve/tasks/matmul/initial_program_lossonly.py
