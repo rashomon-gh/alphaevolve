@@ -14,23 +14,27 @@ providers:
 
 tiers:
   # Paper-style Flash/Pro mixture: ~4:1 fast:strong by sampling weight.
-  # max_tokens is the server-allowed maximum per model (probed via an
-  # oversized request; the gateway rejects anything higher).
+  # max_tokens = server-allowed maximum per model, probed 2026-08-18:
+  # gemma-4-12B-it rejects above a 16384-token TOTAL context (prompt +
+  # completion), so 12288 leaves ~4k prompt headroom; DeepSeek-V4-Flash
+  # clamps silently (accepts 1M), so 65536 is a sane practical max;
+  # Gemma-4-31B was Degraded/unprobeable — assumed to match the 12B
+  # deployment, re-probe when it is healthy.
   fast:
     provider: spike
     model: ${FAST_MODEL:-Gemma-4-31B-IT-NVFP4}
     weight: 4
     temperature: 0.9
-    max_tokens: 8192
+    max_tokens: 12288
   strong:
     provider: spike
     model: ${STRONG_MODEL:-DeepSeek-V4-Flash-0731}
     weight: 1
     temperature: 0.7
-    max_tokens: 8192
+    max_tokens: 65536
   debug:
     provider: spike
     model: ${DEBUG_MODEL:-gemma-4-12B-it}
     weight: 1
     temperature: 0.9
-    max_tokens: 8192
+    max_tokens: 12288
