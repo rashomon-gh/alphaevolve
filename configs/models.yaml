@@ -17,9 +17,10 @@ providers:
     base_url: ${SPIKE_BASE_URL:-https://spike.tue.nl/v1}
     api_key_env: SPIKE_API_KEY
 
-  # Local debugging endpoint.
+  # Local debugging endpoint (omlx server).
   local-debug:
     base_url: ${LOCAL_DEBUG_BASE_URL:-http://127.0.0.1:2026/v1}
+    api_key_env: OMLX_LOCAL_API_KEY
 
 tiers:
   # Paper-style Flash/Pro mixture: ~4:1 fast:strong by sampling weight.

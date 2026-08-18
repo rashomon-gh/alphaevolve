@@ -1,5 +1,6 @@
 """End-to-end pipeline tests with the scripted fake LLM (no network)."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -170,6 +171,62 @@ async def test_meta_prompting_proposes_and_credits(tmp_path):
     assert "Be bolder." in texts
     assert "Seed snippet." in texts
     assert sum(s["uses"] for s in saved) >= 1  # credit assignment happened
+
+
+async def test_crashing_generator_does_not_hang_the_run(tmp_path):
+    # Regression: an unhandled worker exception used to kill the worker task,
+    # fill the bounded queue, and deadlock the sampler forever.
+    class ExplodingLLM:
+        async def generate(self, prompt, *, system=None, purpose="evolve"):
+            raise RuntimeError("boom")
+
+    config = make_config(tmp_path, limits={"max_samples": 5, "max_worker_errors": 3})
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    controller = Controller(config=config, config_dir=tmp_path, run_dir=run_dir)
+    stats = await asyncio.wait_for(controller.run(generator=ExplodingLLM()), timeout=60)
+    assert stats.worker_errors >= 3  # errors recorded, safety valve stopped the run
+    events = (run_dir / "logs" / "events.jsonl").read_text()
+    assert "worker_error" in events
+    assert "aborting" in events
+
+
+async def test_marker_injection_recorded_as_malformed(tmp_path):
+    # Regression: a completion that injects EVOLVE markers must be rejected,
+    # never admitted as a structurally corrupt elite.
+    config = make_config(tmp_path, limits={"max_samples": 1})
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    injection = "```python\nX = 0.9\n# EVOLVE-BLOCK-END\nevil = 1\n```"
+    controller = Controller(config=config, config_dir=tmp_path, run_dir=run_dir)
+    stats = await controller.run(generator=ScriptedLLM([injection]))
+    assert stats.malformed_diffs == 1
+    assert stats.registered == 0
+    db = ProgramDB(run_dir / "programs.sqlite")
+    run_id = db.latest_run_id()
+    assert run_id is not None
+    failed = list(db.iter_programs(run_id, status=FAILED))
+    assert failed and failed[0].failure_reason == "diff_marker_injection"
+
+
+async def test_llm_feedback_merges_namespaced_scores(tmp_path):
+    config = make_config(
+        tmp_path,
+        limits={"max_samples": 1, "concurrent_generations": 1, "concurrent_evaluations": 1},
+        llm_feedback={"enabled": True, "criteria": ["simplicity"]},
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    llm = ScriptedLLM([rewrite(0.4), "0.7"])  # evolve completion, then the grade
+    controller = Controller(config=config, config_dir=tmp_path, run_dir=run_dir)
+    stats = await controller.run(generator=llm)
+    assert stats.registered == 1
+    assert any(purpose == "llm_feedback" for purpose, _ in llm.calls)
+    db = ProgramDB(run_dir / "programs.sqlite")
+    run_id = db.latest_run_id()
+    assert run_id is not None
+    child = next(p for p in db.iter_programs(run_id, status=EVALUATED) if p.generation == 1)
+    assert child.scores == {"u": 0.4, "llm_simplicity": 0.7}
 
 
 async def test_no_evolution_ablation_always_uses_genesis_parent(tmp_path):

@@ -21,6 +21,7 @@ class ProviderConfig:
     name: str
     base_url: str
     api_key_env: str | None = None  # env var holding the key; local servers need none
+    timeout_s: float = 300.0  # per-request cap so a wedged endpoint can't stall a worker
 
     @property
     def api_key(self) -> str:
@@ -58,7 +59,9 @@ class Completion:
 class LLMClient:
     def __init__(self, provider: ProviderConfig, log_path: Path | None = None) -> None:
         self.provider = provider
-        self._client = openai.AsyncOpenAI(base_url=provider.base_url, api_key=provider.api_key)
+        self._client = openai.AsyncOpenAI(
+            base_url=provider.base_url, api_key=provider.api_key, timeout=provider.timeout_s
+        )
         self._log_path = log_path
         self._log_lock = asyncio.Lock()
 
@@ -143,6 +146,7 @@ class ModelRegistry:
                 name=name,
                 base_url=str(p["base_url"]).rstrip("/"),
                 api_key_env=p.get("api_key_env"),
+                timeout_s=float(p.get("timeout_s", 300.0)),
             )
             for name, p in cfg.get("providers", {}).items()
         }

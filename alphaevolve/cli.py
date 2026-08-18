@@ -41,7 +41,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
     run_dir = Path(args.run_dir).resolve()
-    db = ProgramDB(run_dir / "programs.sqlite")
+    db_path = run_dir / "programs.sqlite"
+    if not db_path.exists():  # opening would create an empty DB in a wrong dir
+        print(f"no program database at {db_path}", file=sys.stderr)
+        return 1
+    db = ProgramDB(db_path)
     run_id = db.latest_run_id()
     if run_id is None:
         print("no run found in this directory", file=sys.stderr)

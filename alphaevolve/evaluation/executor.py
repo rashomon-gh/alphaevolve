@@ -59,7 +59,8 @@ async def evaluate_stage(
     artifacts = dict(results[0].artifacts)  # first seed's output is the prompt artifact
     for i, res in enumerate(results):
         if res.scores is None:
-            return None, f"seed {base_seed + i}: {res.failure_reason}", artifacts, seconds
+            # Surface the failing seed's own output, not seed 0's.
+            return None, f"seed {base_seed + i}: {res.failure_reason}", dict(res.artifacts), seconds
     return (
         aggregate([r.scores for r in results if r.scores is not None], aggregation),
         None,

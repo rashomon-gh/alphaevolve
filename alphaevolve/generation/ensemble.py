@@ -14,7 +14,7 @@ import openai
 
 from alphaevolve.generation.llm import Completion, LLMClient, TierConfig
 
-_TRANSPORT_ERRORS = (
+TRANSPORT_ERRORS = (
     openai.APIConnectionError,
     openai.APITimeoutError,
     openai.RateLimitError,
@@ -55,7 +55,7 @@ class Ensemble:
         while True:
             try:
                 return await client.complete(prompt, tier=tier, system=system, purpose=purpose)
-            except _TRANSPORT_ERRORS:
+            except TRANSPORT_ERRORS:
                 attempt += 1
                 if attempt > self.max_retries:
                     raise

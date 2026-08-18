@@ -9,7 +9,6 @@ ties break by recency, then simplicity (shorter code).
 from __future__ import annotations
 
 from bisect import bisect_right
-from dataclasses import dataclass, field
 
 from alphaevolve.database.programs import Program
 from alphaevolve.task.spec import FeatureSpec
@@ -70,7 +69,8 @@ class MapElitesArchive:
         if incumbent is None or dominates(program.scores, incumbent.scores):
             self.cells[cell] = program
             return True
-        # Tie: recency wins (the newer program), then simplicity.
+        # Exact score tie: the newer program takes the cell unless it is
+        # longer — recency for freshness, simplicity as the veto.
         if _tied(program.scores, incumbent.scores) and len(program.code) <= len(incumbent.code):
             self.cells[cell] = program
             return True
@@ -83,10 +83,3 @@ class MapElitesArchive:
     def best(self, key: str) -> Program | None:
         scored = [p for p in self.cells.values() if key in p.scores]
         return max(scored, key=lambda p: p.scores[key], default=None)
-
-
-@dataclass
-class ArchiveStats:
-    admitted: int = 0
-    rejected: int = 0
-    per_cell: dict[Cell, int] = field(default_factory=dict)

@@ -3,13 +3,21 @@
 Ground truth is execution (CLAUDE.md invariant 1): scores only ever come from
 running the task's evaluate() here. Failures are returned as data, never
 masked with heuristic scores (invariant 4).
+
+The evaluator runs in its own session (process group) so a wall-clock timeout
+kills any grandchildren it spawned, not just the direct child. Known accepted
+gap (PLAN.md risks: "subprocess + rlimits first"): network access is NOT
+blocked; move to containers if evolved code starts doing surprising things.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
 import resource
+import signal
 import sys
 import tempfile
 import time
@@ -69,10 +77,14 @@ async def run_evaluation(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             preexec_fn=_make_preexec(cpu_time_s, memory_mb),
+            start_new_session=True,
         )
         try:
             stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
         except TimeoutError:
+            # Kill the whole process group so grandchildren die too.
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(proc.pid, signal.SIGKILL)
             proc.kill()
             await proc.wait()
             return SandboxResult(

@@ -52,6 +52,18 @@ def parse_diff(text: str) -> list[DiffBlock]:
     return blocks
 
 
+def _reject_marker_injection(replacement: str) -> None:
+    """Replacement text may never introduce EVOLVE markers: an injected marker
+    would silently reshape the skeleton/evolve structure of the child program
+    (and corrupt every later generation built on it)."""
+    from alphaevolve.task.markers import END_MARKER, START_MARKER
+
+    for line in replacement.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(START_MARKER) or stripped.startswith(END_MARKER):
+            raise DiffError("marker_injection", stripped[:120])
+
+
 def _find_unique(code: str, search: str) -> int:
     first = code.find(search)
     if first == -1:
@@ -69,6 +81,7 @@ def apply_diff(code: str, blocks: list[DiffBlock]) -> str:
     for block in blocks:
         if block.search == "" and code != "":
             raise DiffError("empty_search")
+        _reject_marker_injection(block.replace)
         start = _find_unique(code, block.search)
         end = start + len(block.search)
         if not any(rs <= start and end <= re_ for rs, re_ in evolve_regions(code)):
@@ -87,6 +100,7 @@ def apply_full_rewrite(code: str, new_block: str) -> str:
             "full_rewrite_ambiguous",
             f"full-rewrite mode requires exactly 1 evolve block, found {len(evolve_indices)}",
         )
+    _reject_marker_injection(new_block)
     if not new_block.endswith("\n"):
         new_block += "\n"
     out: list[str] = []

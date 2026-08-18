@@ -143,6 +143,26 @@ def test_full_rewrite_requires_single_block():
     assert exc.value.reason == "full_rewrite_ambiguous"
 
 
+def test_replacement_injecting_marker_rejected():
+    # An LLM that emits marker lines in the replacement would silently
+    # reshape the evolve-block structure of every descendant program.
+    diff = [
+        DiffBlock(
+            search="    return x * 2\n",
+            replace="    return x * 3\n# EVOLVE-BLOCK-END\nevil = 1\n# EVOLVE-BLOCK-START\n",
+        )
+    ]
+    with pytest.raises(DiffError) as exc:
+        apply_diff(PROGRAM, diff)
+    assert exc.value.reason == "marker_injection"
+
+
+def test_full_rewrite_injecting_marker_rejected():
+    with pytest.raises(DiffError) as exc:
+        apply_full_rewrite(PROGRAM, "x = 1\n# EVOLVE-BLOCK-END\nevil = 2\n")
+    assert exc.value.reason == "marker_injection"
+
+
 def test_extract_code_block():
     assert extract_code_block("prose\n```python\nx = 1\n```\nmore") == "x = 1\n"
     assert extract_code_block("no fences here") == "no fences here"

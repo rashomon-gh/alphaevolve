@@ -144,13 +144,14 @@ class ProgramDB:
         return self._row_to_program(row) if row else None
 
     def iter_programs(self, run_id: str, status: str | None = None) -> Iterator[Program]:
-        """Programs in insertion order (created_at, id) for deterministic replay."""
+        """Programs in exact insertion order (rowid) so replay is deterministic
+        even when two programs share a created_at clock quantum."""
         query = "SELECT * FROM programs WHERE run_id = ?"
         params: list[object] = [run_id]
         if status is not None:
             query += " AND status = ?"
             params.append(status)
-        query += " ORDER BY created_at, id"
+        query += " ORDER BY rowid"
         for row in self._conn.execute(query, params):
             yield self._row_to_program(row)
 

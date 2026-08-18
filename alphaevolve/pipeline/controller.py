@@ -13,8 +13,10 @@ import contextlib
 import json
 import random
 import signal
+import sys
 import time
-from dataclasses import dataclass, field
+import traceback
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -28,6 +30,7 @@ from alphaevolve.database.programs import (
     new_id,
 )
 from alphaevolve.evaluation.cascade import run_cascade
+from alphaevolve.evaluation.llm_feedback import grade
 from alphaevolve.generation.diff import (
     DiffError,
     apply_diff,
@@ -35,12 +38,13 @@ from alphaevolve.generation.diff import (
     extract_code_block,
     parse_diff,
 )
-from alphaevolve.generation.ensemble import Ensemble
+from alphaevolve.generation.ensemble import TRANSPORT_ERRORS, Ensemble
 from alphaevolve.generation.llm import Completion, LLMClient, ModelRegistry
 from alphaevolve.prompting.context import TaskContext
 from alphaevolve.prompting.meta import MetaPromptDB
 from alphaevolve.prompting.sampler import PromptBundle, build_prompt
 from alphaevolve.prompting.stochastic import StochasticSlot
+from alphaevolve.task.markers import MarkerError
 from alphaevolve.task.spec import TaskSpec
 
 
@@ -61,6 +65,7 @@ class RunStats:
     eval_failures: int = 0
     registered: int = 0
     admitted: int = 0
+    worker_errors: int = 0
 
 
 @dataclass(frozen=True)
@@ -131,6 +136,15 @@ class Controller:
         self.n_generators = int(limits.get("concurrent_generations", 2))
         self.n_evaluators = int(limits.get("concurrent_evaluations", 2))
         self.queue_size = int(limits.get("queue_size", 8))
+        self.max_worker_errors = int(limits.get("max_worker_errors", 20))
+
+        feedback_cfg = cfg.get("llm_feedback", {})
+        self.feedback_criteria: list[str] = (
+            [str(c) for c in feedback_cfg.get("criteria", [])]
+            if bool(feedback_cfg.get("enabled", False))
+            else []
+        )
+        self._active_generator: Generator | None = None
 
         self.objective = str(cfg.get("objective", ""))
         self.dump_every = int(cfg.get("dump_every", 10))
@@ -178,7 +192,13 @@ class Controller:
         the database on resume. Generation-0 elites seed every island."""
         evaluated = list(self.db.iter_programs(run_id, status=EVALUATED))
         if evaluated:
-            self._genesis = next(p for p in evaluated if p.generation == 0)
+            genesis = next((p for p in evaluated if p.generation == 0), None)
+            if genesis is None:
+                raise RuntimeError(
+                    "cannot resume: database has evaluated programs but no "
+                    "generation-0 program (corrupt or foreign run directory?)"
+                )
+            self._genesis = genesis
             for program in evaluated:
                 self._register_in_islands(program)
             self._log_event("resumed", programs=len(evaluated))
@@ -258,97 +278,148 @@ class Controller:
     async def _generator(
         self, run_id: str, generator: Generator, prompt_q: asyncio.Queue, eval_q: asyncio.Queue
     ) -> None:
+        # Workers must never die: an unhandled exception in a worker would
+        # leave the bounded queues undrained and deadlock the sampler. Any
+        # unexpected error is recorded loudly and the loop continues (a
+        # repeated-error safety valve stops the whole run).
         while (job := await prompt_q.get()) is not None:
-            if job.kind == "meta":
-                assert self.meta_db is not None
-                try:
-                    completion = await generator.generate(
-                        self.meta_db.propose_prompt(), purpose="meta"
-                    )
-                except Exception as exc:  # transport retries exhausted
-                    self.stats.transport_failures += 1
-                    self._log_event("transport_failure", purpose="meta", error=str(exc)[:300])
-                    continue
-                text = completion.text.strip().strip('"')
-                if text:
-                    snippet = self.meta_db.add(text)
-                    self._log_event("meta_added", snippet=snippet.text[:200])
-                continue
-
-            assert job.bundle is not None and job.parent is not None
             try:
-                completion = await generator.generate(job.bundle.text, purpose="evolve")
-            except Exception as exc:
+                await self._handle_gen_job(run_id, generator, job, eval_q)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self._record_worker_error("generator")
+
+    async def _handle_gen_job(
+        self, run_id: str, generator: Generator, job: _GenJob, eval_q: asyncio.Queue
+    ) -> None:
+        if job.kind == "meta":
+            assert self.meta_db is not None
+            try:
+                completion = await generator.generate(self.meta_db.propose_prompt(), purpose="meta")
+            except TRANSPORT_ERRORS as exc:  # retries already exhausted in the ensemble
                 self.stats.transport_failures += 1
-                self._log_event("transport_failure", purpose="evolve", error=str(exc)[:300])
-                continue
-            try:
-                if self.spec.full_rewrite:
-                    code = apply_full_rewrite(job.parent.code, extract_code_block(completion.text))
-                else:
-                    code = apply_diff(job.parent.code, parse_diff(completion.text))
-            except DiffError as exc:
-                # Malformed output is a measurable signal, never retried
-                # (CLAUDE.md): record it as a failed candidate.
-                self.stats.malformed_diffs += 1
-                failed = Program(
-                    id=new_id(),
-                    code="",
-                    scores={},
-                    parent_id=job.parent.id,
-                    prompt_id=job.bundle.id,
-                    generation=job.parent.generation + 1,
-                    island=job.parent.island,
-                    status=FAILED,
-                    failure_reason=f"diff_{exc.reason}",
-                    artifacts={"completion": completion.text[-8000:]},
-                )
-                self.db.add_program(run_id, failed)
-                self._log_event("malformed_diff", reason=exc.reason, tier=completion.tier)
-                continue
-            await eval_q.put(
-                _EvalJob(code=code, parent=job.parent, bundle=job.bundle, completion=completion)
-            )
+                self._log_event("transport_failure", purpose="meta", error=str(exc)[:300])
+                return
+            text = completion.text.strip().strip('"')
+            if text:
+                snippet = self.meta_db.add(text)
+                self._log_event("meta_added", snippet=snippet.text[:200])
+            return
 
-    async def _evaluator(self, run_id: str, eval_q: asyncio.Queue) -> None:
-        while (job := await eval_q.get()) is not None:
-            result = await run_cascade(self.spec, job.code, base_seed=self.seed)
-            status = EVALUATED if result.ok else FAILED
-            program = Program(
+        assert job.bundle is not None and job.parent is not None
+        try:
+            completion = await generator.generate(job.bundle.text, purpose="evolve")
+        except TRANSPORT_ERRORS as exc:
+            self.stats.transport_failures += 1
+            self._log_event("transport_failure", purpose="evolve", error=str(exc)[:300])
+            return
+        try:
+            if self.spec.full_rewrite:
+                code = apply_full_rewrite(job.parent.code, extract_code_block(completion.text))
+            else:
+                code = apply_diff(job.parent.code, parse_diff(completion.text))
+        except (DiffError, MarkerError) as exc:
+            # Malformed output is a measurable signal, never retried
+            # (CLAUDE.md): record it as a failed candidate. MarkerError is
+            # defensive — it means a corrupt parent slipped into the archive.
+            reason = f"diff_{exc.reason}" if isinstance(exc, DiffError) else "marker_error"
+            self.stats.malformed_diffs += 1
+            failed = Program(
                 id=new_id(),
-                code=job.code,
-                scores=result.scores,
+                code="",
+                scores={},
                 parent_id=job.parent.id,
                 prompt_id=job.bundle.id,
                 generation=job.parent.generation + 1,
                 island=job.parent.island,
-                status=status,
-                failure_reason=result.failure_reason,
-                artifacts=result.artifacts,
+                status=FAILED,
+                failure_reason=reason,
+                artifacts={"completion": completion.text[-8000:]},
             )
-            self.db.add_program(run_id, program)
-            if result.ok:
-                admitted = self.islands.register(program)
-                self.stats.registered += 1
-                self.stats.admitted += int(admitted)
-                self._credit_meta(job, program)
-                self._log_event(
-                    "registered",
-                    program=program.id,
-                    scores=program.scores,
-                    stage=result.stage_reached,
-                    admitted=admitted,
-                    tier=job.completion.tier,
-                )
-                if self.dump_every and self.stats.registered % self.dump_every == 0:
-                    self._dump_best()
-            else:
-                self.stats.eval_failures += 1
-                self._log_event(
-                    "eval_failed",
-                    reason=(result.failure_reason or "")[:300],
-                    tier=job.completion.tier,
-                )
+            self.db.add_program(run_id, failed)
+            self._log_event("malformed_diff", reason=reason, tier=completion.tier)
+            return
+        await eval_q.put(
+            _EvalJob(code=code, parent=job.parent, bundle=job.bundle, completion=completion)
+        )
+
+    async def _evaluator(self, run_id: str, eval_q: asyncio.Queue) -> None:
+        while (job := await eval_q.get()) is not None:
+            try:
+                await self._handle_eval_job(run_id, job)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self._record_worker_error("evaluator")
+
+    async def _handle_eval_job(self, run_id: str, job: _EvalJob) -> None:
+        result = await run_cascade(self.spec, job.code, base_seed=self.seed)
+        status = EVALUATED if result.ok else FAILED
+        program = Program(
+            id=new_id(),
+            code=job.code,
+            scores=result.scores,
+            parent_id=job.parent.id,
+            prompt_id=job.bundle.id,
+            generation=job.parent.generation + 1,
+            island=job.parent.island,
+            status=status,
+            failure_reason=result.failure_reason,
+            artifacts=result.artifacts,
+        )
+        if result.ok and self.feedback_criteria:
+            program = replace(program, scores=program.scores | await self._llm_feedback(job.code))
+        self.db.add_program(run_id, program)
+        if result.ok:
+            admitted = self.islands.register(program)
+            self.stats.registered += 1
+            self.stats.admitted += int(admitted)
+            self._credit_meta(job, program)
+            self._log_event(
+                "registered",
+                program=program.id,
+                scores=program.scores,
+                stage=result.stage_reached,
+                admitted=admitted,
+                tier=job.completion.tier,
+            )
+            if self.dump_every and self.stats.registered % self.dump_every == 0:
+                self._dump_best()
+        else:
+            self.stats.eval_failures += 1
+            self._log_event(
+                "eval_failed",
+                reason=(result.failure_reason or "")[:300],
+                tier=job.completion.tier,
+            )
+
+    async def _llm_feedback(self, code: str) -> dict[str, float]:
+        """Optional LLM-graded auxiliary scores (paper §2.4), keys ``llm_*``.
+        Grading failures produce no keys — never a fabricated score."""
+        generator = self._active_generator
+        if generator is None:
+            return {}
+
+        class _Completer:
+            async def complete(self, prompt: str) -> str:
+                completion = await generator.generate(prompt, purpose="llm_feedback")
+                return completion.text
+
+        try:
+            return await grade(code, self.feedback_criteria, _Completer())
+        except TRANSPORT_ERRORS as exc:
+            self._log_event("transport_failure", purpose="llm_feedback", error=str(exc)[:300])
+            return {}
+
+    def _record_worker_error(self, worker: str) -> None:
+        self.stats.worker_errors += 1
+        trace = traceback.format_exc()
+        self._log_event("worker_error", worker=worker, traceback=trace[-2000:])
+        print(f"[alphaevolve] {worker} worker error:\n{trace}", file=sys.stderr)
+        if self.stats.worker_errors >= self.max_worker_errors:
+            self._log_event("aborting", reason=f"{self.stats.worker_errors} worker errors")
+            self._stop.set()
 
     def _credit_meta(self, job: _EvalJob, child: Program) -> None:
         if self.meta_db is None:
@@ -376,6 +447,7 @@ class Controller:
             built = self.build_ensemble()
             await self.preflight(built)
             ensemble = built
+        self._active_generator = ensemble
 
         if self.meta_db is not None and self._meta_path.exists():
             self.meta_db = MetaPromptDB.load(self._meta_path)
