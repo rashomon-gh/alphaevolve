@@ -69,25 +69,4 @@ Each run directory contains the resolved `config.json`, the SQLite program
 database (full lineage + prompts), JSONL logs of every LLM request and
 pipeline event, and periodic best-program dumps under `best/`.
 
-## Status
 
-All phases of `PLAN.md` are implemented: task/marker API, SEARCH/REPLACE diff
-engine, sandboxed cascade evaluation, MAP-Elites × islands database, prompt
-sampler (context, stochastic templates, meta-prompt evolution), LLM ensemble,
-async pipeline, CLI (Phases 0–5); matmul tensor decomposition with exact
-half-integer verification, real and complex (Phase 6); kissing-number and
-circle-packing tasks that evolve the search heuristic with persisted
-constructions (Phase 7); run reports with score curves, cost accounting, and
-the failure-mode dashboard (Phase 8); and the §4 ablation configs + compare
-harness (Phase 9). The remaining work is compute: long evolutionary runs on
-the matmul/kissing/packing milestones and the ablation sweeps.
-
-Validated live (2026-08-18): a 300-sample fast-tier-only binpack run against
-the spike gateway improved utilization 0.8391 (naive first-fit) → 0.8535
-across a three-generation lineage, with a 3.7% malformed-diff rate and zero
-pipeline errors.
-
-The matmul optimizer runs on NumPy (CPU) rather than JAX: portable across
-Apple Silicon without the JAX-Metal caveats, and the tiny einsum workloads in
-scope don't need an accelerator. The evolved code may still adopt any library
-available in the environment.
